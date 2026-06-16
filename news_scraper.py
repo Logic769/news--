@@ -10,33 +10,18 @@ import re
 import time
 from datetime import datetime
 import logging
+from config import DB_CONFIG, HEADERS, SCRAPER_DELAY
 
 # ==================== 配置 ====================
 
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 3306,
-    "user": "root",
-    "password": "3.1415926tcy",
-    "database": "nchu_news",
-    "charset": "utf8mb4",
-}
+REQUEST_DELAY = SCRAPER_DELAY
 
-# 爬取范围：start_page 到 end_page（共619页，建议先少量测试）
+# 爬取范围（覆盖整站约619页，建议先少量测试）
 START_PAGE = 1
-END_PAGE = 3  # 测试用，正式爬取改为 619
-
-# 请求间隔（秒），避免被封
-REQUEST_DELAY = 2
+END_PAGE = 3
 
 LIST_URL = "https://www.nchu.edu.cn/xwzx/chyw"
 BASE_URL = "https://www.nchu.edu.cn"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-}
 
 # ==================== 日志 ====================
 

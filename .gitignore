@@ -1,0 +1,6 @@
+.env
+__pycache__/
+*.pyc
+*.log
+scraper.log
+site_scanner.log

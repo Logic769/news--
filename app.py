@@ -11,28 +11,16 @@ import pymysql
 import hashlib
 import json
 import re
-import os
 from datetime import datetime, date
+from config import DB_CONFIG, AI_CONFIG, SECRET_KEY, DEFAULT_ADMIN_USER, DEFAULT_ADMIN_PASS, DEFAULT_ADMIN_NAME, print_config
 
 app = Flask(__name__, template_folder="templates")
-app.secret_key = "nchu-news-secret-key-2026"
+app.secret_key = SECRET_KEY
 CORS(app, supports_credentials=True)
-
-# ==================== 数据库配置 ====================
-
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 3306,
-    "user": "root",
-    "password": "3.1415926tcy",
-    "database": "nchu_news",
-    "charset": "utf8mb4",
-    "cursorclass": pymysql.cursors.DictCursor,
-}
 
 
 def get_db():
-    return pymysql.connect(**DB_CONFIG)
+    return pymysql.connect(**DB_CONFIG, cursorclass=pymysql.cursors.DictCursor)
 
 
 # ==================== 辅助工具 ====================
@@ -829,17 +817,7 @@ def api_scan_logs():
 
 # ==================== AI 智能总结 API ====================
 
-# -- AI 配置：支持 OpenAI / DeepSeek 兼容接口 -----
-AI_CONFIG = {
-    "api_url": "https://api.deepseek.com/chat/completions",
-    "api_key": "sk-64b6673f5080428a97bf7e069af643f5",
-    "model": "deepseek-chat",
-    "max_tokens": 2000,
-    "temperature": 0.3,  # 低温度保证客观性
-}
-
-if os.environ.get("AI_API_KEY"):
-    AI_CONFIG["api_key"] = os.environ["AI_API_KEY"]
+# AI 配置已迁移到 config.py，通过环境变量 AI_API_KEY 等控制
 
 
 def _call_ai_api(prompt):
@@ -958,6 +936,37 @@ def _rule_based_summarize(_title, content):
     return summary, "\n".join(keypoints) if keypoints else "暂无关键信息提取"
 
 
+def _clean_markdown(text):
+    """清洗 AI 返回的 Markdown 格式，保留纯文本结构"""
+    import re as _re
+    if not text:
+        return ""
+    text = _re.sub(r"^#{1,6}\s+", "", text, flags=_re.MULTILINE)   # 去除 ### 标题
+    text = _re.sub(r"\*\*(.+?)\*\*", r"\1", text)                    # **粗体**
+    text = _re.sub(r"__([^_]+)__", r"\1", text)                      # __粗体__
+    text = _re.sub(r"\*(.+?)\*", r"\1", text)                        # *斜体*
+    text = _re.sub(r"`([^`]+)`", r"\1", text)                        # `代码`
+    text = _re.sub(r"^\d+\.\s+", "", text, flags=_re.MULTILINE)     # 去除数字序号 1. 2.
+    text = _re.sub(r"^[-*+]\s+", "", text, flags=_re.MULTILINE)     # - * + 列表符号
+    # 保留换行：空行→双换行，单换行→单换行
+    text = _re.sub(r"[\r\n]{2,}", "\n", text)
+    text = _re.sub(r"(\S)[\r\n](\S)", r"\1\2", text)  # 合并误断行
+    return text.strip()
+
+
+def _safe_trim(text, max_len):
+    """在句子边界安全截断（避免截断到句子中间）"""
+    import re as _re
+    if not text or len(text) <= max_len:
+        return text
+    cut = text[:max_len]
+    # 在最后一个句号、分号或换行处截断
+    last = max(cut.rfind("。"), cut.rfind("；"), cut.rfind("\n"), cut.rfind(". "))
+    if last > max_len // 2:
+        return cut[:last + 1]
+    return cut.rstrip() + "…"
+
+
 @app.route("/api/news/<news_id>/summarize", methods=["POST"])
 def api_summarize_news(news_id):
     """
@@ -995,26 +1004,38 @@ def api_summarize_news(news_id):
 
         # 尝试 AI 模型
         if use_ai and AI_CONFIG["api_key"]:
-            prompt = f"""请对以下新闻进行客观、完整的信息梳理，输出两部分：
+            prompt = f"""请对以下新闻进行客观、完整的信息梳理。严格按以下格式输出（仅输出两部分，不要任何额外解释）：
 
-「摘要」（150-250字，概述新闻核心内容，保持信息完整、客观，不添加评论）
+「摘要」
+用150-300字的流畅段落概述新闻核心内容，保持信息完整、客观，不添加主观评论。
 
-「关键信息点」（用列表形式列出时间、地点、人物/机构、核心事件、数据/成果、影响意义等关键要素）
+「关键信息点」
+每行一条，每条前加短横线"-"，列出时间、地点、人物/机构、核心事件、数据成果等关键要素。
 
 新闻标题：{title}
 
 新闻正文：
-{content[:3000]}"""
+{content[:6000]}"""
             ai_result = _call_ai_api(prompt)
             if ai_result:
-                # 解析 AI 输出
+                # 先按分隔符拆分，再清洗 Markdown
                 parts = ai_result.split("「关键信息点」")
                 if len(parts) >= 2:
-                    summary = parts[0].replace("「摘要」", "").strip()
-                    keypoints = parts[1].strip()
+                    summary = _clean_markdown(parts[0].replace("「摘要」", "").strip())
+                    keypoints = _clean_markdown(parts[1].strip())
+                elif "关键信息" in ai_result:
+                    # 备选分隔：中文冒号后的"关键信息"
+                    alt_parts = re.split(r"关键信息[点：:]", ai_result, maxsplit=1)
+                    if len(alt_parts) >= 2:
+                        summary = _clean_markdown(alt_parts[0].replace("「摘要」", "").replace("摘要：", "").replace("摘要:", "").strip())
+                        keypoints = _clean_markdown(alt_parts[1].strip())
+                    else:
+                        # 整段回退：取前500字符作为摘要
+                        summary = _safe_trim(_clean_markdown(ai_result), 500)
+                        keypoints = ""
                 else:
-                    summary = ai_result[:600]
-                    keypoints = ai_result[600:]
+                    summary = _safe_trim(_clean_markdown(ai_result), 500)
+                    keypoints = ""
                 source = "ai"
 
         # 回退到规则引擎
@@ -1090,16 +1111,25 @@ def api_batch_summarize():
             summary, keypoints = None, None
             source = "rule"
             if use_ai and AI_CONFIG["api_key"]:
-                prompt = f"""请对以下新闻进行客观、完整的信息梳理，输出两部分：
-「摘要」（150-250字）
-「关键信息点」（列表形式）
+                prompt = f"""请对以下新闻进行客观、完整的信息梳理。严格按格式输出：
+「摘要」用150-300字流畅段落。
+「关键信息点」每行一条加短横线。
+
 新闻标题：{title}
-新闻正文：{content[:3000]}"""
+新闻正文：{content[:6000]}"""
                 ai_result = _call_ai_api(prompt)
                 if ai_result:
                     parts = ai_result.split("「关键信息点」")
-                    summary = (parts[0].replace("「摘要」", "").strip())[:600] if parts else ai_result[:600]
-                    keypoints = parts[1].strip() if len(parts) >= 2 else ai_result[600:]
+                    if len(parts) >= 2:
+                        summary = _clean_markdown(parts[0].replace("「摘要」", "").strip())
+                        keypoints = _clean_markdown(parts[1].strip())
+                    elif "关键信息" in ai_result:
+                        alt = re.split(r"关键信息[点：:]", ai_result, maxsplit=1)
+                        summary = _clean_markdown(alt[0].replace("「摘要」", "").replace("摘要：", "").replace("摘要:", "").strip()) if len(alt) >= 2 else _safe_trim(_clean_markdown(ai_result), 500)
+                        keypoints = _clean_markdown(alt[1].strip()) if len(alt) >= 2 else ""
+                    else:
+                        summary = _safe_trim(_clean_markdown(ai_result), 500)
+                        keypoints = ""
                     source = "ai"
 
             if not summary:
@@ -1497,8 +1527,8 @@ def init_db():
         # 默认管理员
         cur.execute(
             "INSERT IGNORE INTO users (username, password_hash, display_name, department, role, avatar_text) "
-            "VALUES ('admin', %s, '方裕骁', '科信管理部', 'admin', '方')",
-            [sha256("admin123")]
+            "VALUES (%s, %s, %s, '科信管理部', 'admin', %s)",
+            [DEFAULT_ADMIN_USER, sha256(DEFAULT_ADMIN_PASS), DEFAULT_ADMIN_NAME, DEFAULT_ADMIN_NAME[0]]
         )
         # 给管理员创建默认偏好
         cur.execute(
@@ -1537,6 +1567,7 @@ if __name__ == "__main__":
     print("=" * 50)
     print("南昌航空大学新闻系统")
     print("访问地址: http://127.0.0.1:5000")
-    print("默认管理员: admin / admin123")
+    print(f"默认管理员: {DEFAULT_ADMIN_USER} / {DEFAULT_ADMIN_PASS}")
+    print_config()
     print("=" * 50)
     app.run(host="0.0.0.0", port=5000, debug=True)

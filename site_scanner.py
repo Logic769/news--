@@ -15,23 +15,12 @@ import hashlib
 import logging
 from datetime import datetime
 from html import unescape as html_unescape
+from config import DB_CONFIG, HEADERS, SCRAPER_DELAY, SCRAPER_DEFAULT_PAGES
 
 # ==================== 配置 ====================
 
-DB_CONFIG = {
-    "host": "localhost", "port": 3306,
-    "user": "root", "password": "3.1415926tcy",
-    "database": "nchu_news", "charset": "utf8mb4",
-}
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-}
-
-REQUEST_DELAY = 2   # 请求间隔秒数
-DEFAULT_PAGES = 3   # 每个站点默认爬取页数
+REQUEST_DELAY = SCRAPER_DELAY
+DEFAULT_PAGES = SCRAPER_DEFAULT_PAGES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[logging.FileHandler("site_scanner.log", encoding="utf-8"), logging.StreamHandler()])
