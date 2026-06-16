@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -125,6 +125,9 @@ input,select,textarea{font-family:inherit;outline:none;border:none}
 .filter-tab{padding:6px 14px;border-radius:20px;font-size:.78rem;font-weight:500;background:var(--card);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;transition:all .2s}
 .filter-tab:hover{border-color:var(--border-light);color:var(--text)}
 .filter-tab.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+.sort-btn{padding:5px 12px;border-radius:4px;font-size:.72rem;font-weight:500;background:var(--card);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;transition:all .15s}
+.sort-btn:hover{border-color:var(--accent);color:var(--accent)}
+.sort-btn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
 
 /* ── NEWS CARD ── */
 .news-card{display:flex;gap:14px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;transition:all .25s}
@@ -160,6 +163,11 @@ input,select,textarea{font-family:inherit;outline:none;border:none}
 .cat-bar-bg{flex:1;height:7px;background:var(--surface);border-radius:4px;overflow:hidden}
 .cat-bar-fill{height:100%;border-radius:4px;transition:width .8s ease}
 .cat-bar-row .count{font-family:var(--font-mono);font-size:.75rem;width:32px;text-align:right;color:var(--text-muted)}
+.iw-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.iw-row .iw-cat{font-size:.75rem;width:60px;color:var(--text);text-align:right}
+.iw-bar{flex:1;height:6px;background:var(--surface);border-radius:3px;overflow:hidden}
+.iw-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .5s}
+.iw-row .iw-val{font-family:var(--font-mono);font-size:.7rem;width:32px;text-align:right;color:var(--text-dim)}
 
 /* ── STATUS ITEMS ── */
 .status-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
@@ -269,6 +277,22 @@ select.form-input{appearance:none;cursor:pointer}
 
 .loader{text-align:center;padding:40px;color:var(--text-muted)}
 .loader::before{content:'';display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-right:10px;vertical-align:middle}
+
+/* ── SCAN PROGRESS ── */
+.scan-progress-panel{display:none;padding:16px 20px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px}
+.scan-progress-panel.show{display:block}
+.progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.progress-header .label{font-size:.8rem;font-weight:600;color:var(--text)}
+.progress-header .pct{font-family:var(--font-mono);font-size:.82rem;font-weight:700;color:var(--accent)}
+.progress-bar-outer{height:8px;background:var(--surface);border-radius:4px;overflow:hidden;margin-bottom:12px}
+.progress-bar-inner{height:100%;background:linear-gradient(90deg,var(--blue),var(--accent));border-radius:4px;transition:width .4s ease;width:0}
+.progress-bar-inner.done{background:var(--green)}
+.progress-detail{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.72rem;color:var(--text-muted);line-height:1.7}
+.progress-detail .phase-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;animation:pulse 1s infinite;background:var(--accent)}
+.progress-detail .phase-dot.done{background:var(--green)}
+.progress-detail .val{color:var(--text);font-weight:500}
+.progress-detail .err{color:var(--red)}
+.progress-detail .warn{color:var(--orange)}
 .empty-state{text-align:center;padding:50px 20px;color:var(--text-dim)}
 .empty-state .icon{font-size:2.5rem;margin-bottom:10px;opacity:.4}
 .empty-state p{font-size:.82rem}
@@ -365,6 +389,11 @@ select.form-input{appearance:none;cursor:pointer}
     <!-- ═══ CATEGORY ═══ -->
     <div class="page" id="page-category">
       <div class="filter-tabs" id="filterTabs"></div>
+      <div class="sort-bar" id="catSortBar" style="display:flex;gap:6px;padding:8px 0 12px;justify-content:flex-end">
+        <button class="sort-btn active" data-sort="newest" onclick="setCatSort('newest')">最新</button>
+        <button class="sort-btn" data-sort="popular" onclick="setCatSort('popular')">最热</button>
+        <button class="sort-btn" data-sort="smart" onclick="setCatSort('smart')">推荐</button>
+      </div>
       <div id="catNewsList">加载中...</div>
       <div class="pagination" id="catPagination"></div>
     </div>
@@ -376,6 +405,11 @@ select.form-input{appearance:none;cursor:pointer}
         <p style="color:var(--text-muted);font-size:.82rem;margin-bottom:20px">输入关键词搜索南航要闻</p>
         <div class="search-box"><input class="search-input" type="text" placeholder="输入关键词..." id="searchInput" onkeyup="if(event.key==='Enter')doSearch()"><button class="search-btn" onclick="doSearch()">检 索</button></div>
         <div class="filter-tabs" style="justify-content:center;margin-bottom:0" id="searchFilterTabs"></div>
+        <div class="sort-bar" id="searchSortBar" style="display:flex;gap:6px;padding:8px 0 0;justify-content:center">
+          <button class="sort-btn active" data-sort="newest" onclick="setSearchSort('newest')">最新</button>
+          <button class="sort-btn" data-sort="popular" onclick="setSearchSort('popular')">最热</button>
+          <button class="sort-btn" data-sort="smart" onclick="setSearchSort('smart')">推荐</button>
+        </div>
       </div>
       <div id="searchResultLabel" style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px;display:none"></div>
       <div id="searchResultList"></div>
@@ -406,17 +440,24 @@ select.form-input{appearance:none;cursor:pointer}
         <div class="setting-row"><div><div class="setting-label">关注分类</div><div class="setting-desc" id="prefCats">全部</div></div><span style="color:var(--accent);font-size:.78rem;cursor:pointer" onclick="showPrefModal()">编辑</span></div>
         <div class="setting-row"><div><div class="setting-label">关注关键词</div><div class="setting-desc" id="prefKws">无</div></div><span style="color:var(--accent);font-size:.78rem;cursor:pointer" onclick="showPrefModal()">编辑</span></div>
       </div>
+      <div class="settings-section">
+        <h3>AI 兴趣学习 <span style="font-size:.7rem;color:var(--text-dim)">(自动分析阅读行为)</span></h3>
+        <div id="interestWeights" style="font-size:.78rem;color:var(--text-dim)">加载中...</div>
+      </div>
     </div>
 
     <!-- ═══ ADMIN ═══ -->
     <div class="page" id="page-admin">
       <div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px" id="adminStatsRow"></div>
-      <div style="display:flex;gap:12px;margin-bottom:18px">
+      <div style="display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap;align-items:center">
         <button class="btn-accent" onclick="triggerPush()">触发智能推送</button>
         <button class="btn-accent" style="background:var(--purple)" onclick="batchSummarize()">批量AI总结</button>
         <button class="btn-outline" onclick="refetchAllContent()">补全正文摘要</button>
         <button class="btn-outline" onclick="showAddSiteModal()">+ 添加站点</button>
         <button class="btn-outline" onclick="showCreateUserModal()">+ 添加用户</button>
+        <span style="margin-left:auto"></span>
+        <button class="btn-outline danger" onclick="showDeleteSourceModal()" style="border-color:var(--orange);color:var(--orange)">按来源删除</button>
+        <button class="btn-outline danger" onclick="deleteAllNews()" style="border-color:var(--red);color:var(--red)">删除全部新闻</button>
       </div>
       <div class="push-result" id="pushResult"></div>
       <div id="batchResult" style="padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:0;margin-bottom:14px;display:none;font-size:.82rem;line-height:1.7"></div>
@@ -427,13 +468,31 @@ select.form-input{appearance:none;cursor:pointer}
           <button class="btn-primary" style="padding:4px 14px;font-size:.82rem" onclick="showAddSiteModal()">+ 添加站点</button>
         </span>
       </div>
-      <div id="scanMsg" style="padding:8px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:12px;display:none;font-size:.82rem"></div>
+      <!-- 采集进度面板 -->
+      <div class="scan-progress-panel" id="scanProgress">
+        <div class="progress-header">
+          <span class="label" id="progressLabel">采集就绪</span>
+          <span class="pct" id="progressPct">0%</span>
+        </div>
+        <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar"></div></div>
+        <div class="progress-detail" id="progressDetail">点击「全站扫描」或「采集」按钮开始</div>
+      </div>
       <div style="overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px">
         <table class="admin-table"><thead><tr><th>站点名称</th><th>网址</th><th class="center">分类页/详情页</th><th class="center">采集频率</th><th class="center">状态</th><th class="center">最后采集</th><th class="center">操作</th></tr></thead><tbody id="adminSiteTable"></tbody></table>
       </div>
 
       <div class="section-title">采集日志</div>
       <div style="overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px" id="scanLogsContainer">
+        <p style="color:var(--muted);padding:14px;margin:0">加载中...</p>
+      </div>
+
+      <div class="section-title">过滤信息管理 <span style="font-size:.72rem;color:var(--text-dim);font-weight:400">(被爬虫鉴别机制过滤的内容)</span></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+        <input class="form-input" type="text" id="inputFilterNewsId" placeholder="输入新闻ID，标记为无效" style="flex:1;padding:6px 10px;font-size:.78rem">
+        <button class="btn-sm danger" onclick="filterExistingNews()">标记无效</button>
+        <span id="filterNewsMsg" style="font-size:.75rem;color:var(--text-muted);white-space:nowrap"></span>
+      </div>
+      <div style="overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px" id="filteredNewsContainer">
         <p style="color:var(--muted);padding:14px;margin:0">加载中...</p>
       </div>
 
@@ -480,23 +539,41 @@ select.form-input{appearance:none;cursor:pointer}
     <div class="modal-close" onclick="closeAddSiteModal()">×</div>
     <h2 id="siteModalTitle">添加监测站点</h2>
     <input type="hidden" id="editSiteId" value="">
-    <div class="form-group"><label>站点名称</label><input class="form-input" type="text" id="newSiteName" placeholder="如: 南昌航空大学-新闻中心"></div>
-    <div class="form-group"><label>站点域名</label><input class="form-input" type="text" id="newSiteUrl" placeholder="如: nchu.edu.cn"></div>
-    <div class="form-group"><label>采集频率</label><select class="form-input" id="newSiteFreq"><option>每日1次</option><option>每日2次</option><option>每6小时</option><option>每12小时</option></select></div>
-    <div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px"><strong>爬虫配置 (JSON)</strong>
-      <textarea class="form-input" id="newSiteConfig" style="min-height:200px;font-family:Consolas,monospace;font-size:0.78rem;white-space:pre" placeholder='{"list_url":"https://xxx.edu.cn/news/list","list_pagination":"/page/{page}","list_item_selector":"a.news-link","detail_content_selector":"div.article-body","news_id_pattern":"(\\d+)","base_url":"https://xxx.edu.cn","encoding":"utf-8"}'></textarea>
-      <div style="font-size:0.72rem;color:var(--muted);line-height:1.6;margin-top:6px">
-        <strong>字段说明：</strong><br>
-        <code>list_url</code> — 列表页 URL (必填)<br>
-        <code>list_pagination</code> — 分页模板，{page} 为页码<br>
-        <code>list_item_selector</code> — 新闻链接 CSS 选择器<br>
-        <code>detail_content_selector</code> — 正文区域 CSS 选择器<br>
-        <code>base_url</code> — 拼接相对路径的基础URL
+    <div class="form-group"><label>站点名称</label><input class="form-input" type="text" id="newSiteName" placeholder="自动检测或手动输入站点名称"></div>
+    <div class="form-group"><label>新闻列表页 URL</label><div style="display:flex;gap:8px"><input class="form-input" type="text" id="newSiteUrl" placeholder="如: https://news.xxx.edu.cn" style="flex:1"><button class="btn-accent" onclick="autoAnalyzeSite()" id="btnAnalyze" style="white-space:nowrap;padding:8px 16px;font-size:.82rem;background:var(--blue);border:1px solid var(--blue);border-radius:var(--radius-sm);color:#fff;cursor:pointer">智能分析</button></div></div>
+    <div class="form-group"><label>采集频率</label><select class="form-input" id="newSiteFreq"><option>每日1次</option><option selected>每日2次</option><option>每6小时</option><option>每12小时</option></select></div>
+    <!-- 分析结果区域 -->
+    <div id="analyzeResult" style="display:none;padding:14px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:var(--radius);margin-bottom:14px;font-size:.82rem;line-height:1.7"></div>
+    <div id="analyzeLoading" style="display:none;text-align:center;padding:20px;color:var(--text-muted)">正在智能分析目标网站...</div>
+    <!-- 高级: 手动配置(折叠) -->
+    <details style="margin-bottom:14px;border:1px solid var(--border);border-radius:var(--radius);padding:12px" id="detailScraperConfig">
+      <summary style="font-size:.85rem;font-weight:600;color:var(--text-muted);cursor:pointer">高级: 查看/修改爬虫配置</summary>
+      <div style="margin-top:10px;display:flex;gap:6px;margin-bottom:6px">
+        <button class="btn-sm" onclick="aiFixScraper()" id="btnAiFix" style="background:var(--purple);color:#fff;border:1px solid var(--purple);border-radius:var(--radius-sm);white-space:nowrap">AI修复</button>
+        <button class="btn-sm" onclick="validateSiteConfig()" style="white-space:nowrap">验证JSON</button>
+        <span id="aiFixStatus" style="font-size:.75rem;color:var(--text-dim);margin-left:4px;line-height:1.8"></span>
       </div>
-    </div>
+      <textarea class="form-input" id="newSiteConfig" style="min-height:200px;font-family:Consolas,monospace;font-size:.78rem;white-space:pre" placeholder='自动生成，也可手动修改'></textarea>
+    </details>
     <div style="display:flex;gap:8px">
-      <button class="btn-primary" onclick="saveNewSite()" style="flex:1">保存站点</button>
-      <button class="btn-outline" onclick="validateSiteConfig()" style="flex:0">验证 JSON</button>
+      <button class="btn-primary" onclick="saveNewSiteSmart()" id="btnSmartAdd" style="flex:1;background:var(--green)">一键添加并自动采集</button>
+      <button class="btn-outline" onclick="saveNewSite()" id="btnSimpleAdd">仅保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DELETE SOURCE MODAL ═══ -->
+<div class="modal-overlay" id="deleteSourceModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-close" onclick="closeDeleteSourceModal()">×</div>
+    <h2>按新闻来源删除</h2>
+    <div class="form-group"><label>选择要删除的新闻来源</label>
+      <select class="form-input" id="selectDeleteSource" style="margin-bottom:8px"><option value="">加载中...</option></select>
+    </div>
+    <div id="deleteSourceResult" style="font-size:.82rem;color:var(--text-dim);margin-bottom:10px;min-height:20px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-outline danger" onclick="deleteNewsBySource()" id="btnDeleteSource" style="border-color:var(--red);color:var(--red);flex:1">确认删除</button>
+      <button class="btn-outline" onclick="closeDeleteSourceModal()">取消</button>
     </div>
   </div>
 </div>
@@ -507,6 +584,7 @@ let currentUser = null;
 let currentPage = 'home'; let prevPage = 'home';
 let currentCategory = '全部'; let currentSearchCategory = '全部';
 let catPage = 1, searchPage = 1;
+let catSort = 'newest', searchSort = 'newest';
 let currentPrefs = {};
 const PER_PAGE = 15;
 const CAT_COLORS = {'党建思政':'var(--red)','人物风采':'var(--orange)','荣誉获奖':'var(--gold)','教育教学':'var(--blue)','学术科研':'var(--purple)','交流合作':'var(--teal)','校园活动':'var(--green)','会议要闻':'#8896a8','综合新闻':'var(--text-muted)'};
@@ -621,7 +699,7 @@ function renderNewsCards(elId, items, showRelevance){
       <div class="cat-line ${n.category}"></div><div class="news-body"><h3>${esc(n.title)}</h3>
       <div class="news-meta"><span class="cat-tag ${n.category}">${n.category}</span>${n.source?`<span class="info">${esc(n.source)}</span>`:''}<span class="info">${n.publish_date||''}</span></div>
       ${n.summary?`<div class="news-summary">${esc(n.summary)}</div>`:''}</div>
-      ${showRelevance?`<div class="relevance-badge"><div class="score">${n.relevance||n.views||0}%</div><div class="label">相关度</div></div>`:`<div class="news-views"><div class="num">${n.views||0}</div><div class="label">浏览</div></div>`}
+      ${showRelevance?`<div class="relevance-badge"><div class="score">${n.relevance||n.views||0}%</div><div class="label">相关度</div></div>`:`<div class="news-views"><div class="num">${n.click_count||n.views||0}</div><div class="label">热度</div></div>`}
     </div>`).join('');
 }
 
@@ -631,10 +709,15 @@ async function loadCategory(cat, page){
   if(page!==undefined)catPage=page;else catPage=1;
   const cats=await api('/api/categories');
   if(cats){document.getElementById('filterTabs').innerHTML=['全部',...cats.map(c=>c.category)].map(c=>`<span class="filter-tab${c===currentCategory?' active':''}" onclick="loadCategory('${c}',1)">${c}</span>`).join('');}
-  let url=`/api/news?page=${catPage}&per_page=${PER_PAGE}`;
+  let url=`/api/news?page=${catPage}&per_page=${PER_PAGE}&sort=${catSort}`;
   if(currentCategory!=='全部')url+=`&category=${encodeURIComponent(currentCategory)}`;
   const data=await api(url);
   if(data){renderNewsCards('catNewsList',data.items,false);renderPagination('catPagination',catPage,data.total_pages,p=>loadCategory(undefined,p));}
+}
+function setCatSort(sort){
+  catSort=sort;
+  document.querySelectorAll('#catSortBar .sort-btn').forEach(b=>b.classList.toggle('active',b.dataset.sort===sort));
+  catPage=1; loadCategory();
 }
 
 // ==================== SEARCH ====================
@@ -646,7 +729,7 @@ function setSearchCat(cat){currentSearchCategory=cat;loadSearchPage();}
 async function doSearch(){
   const kw=document.getElementById('searchInput').value.trim();if(!kw)return;
   searchPage=1;
-  let url=`/api/news?page=1&per_page=${PER_PAGE}&keyword=${encodeURIComponent(kw)}`;
+  let url=`/api/news?page=1&per_page=${PER_PAGE}&keyword=${encodeURIComponent(kw)}&sort=${searchSort}`;
   if(currentSearchCategory!=='全部')url+=`&category=${encodeURIComponent(currentSearchCategory)}`;
   const data=await api(url);
   if(data){
@@ -654,11 +737,16 @@ async function doSearch(){
     document.getElementById('searchResultLabel').textContent=`找到 ${data.total} 条相关新闻`;
     renderNewsCards('searchResultList',data.items,false);
     if(data.total_pages>1)renderPagination('searchPagination',1,data.total_pages,async p=>{
-      let u=`/api/news?page=${p}&per_page=${PER_PAGE}&keyword=${encodeURIComponent(kw)}`;
+      let u=`/api/news?page=${p}&per_page=${PER_PAGE}&keyword=${encodeURIComponent(kw)}&sort=${searchSort}`;
       if(currentSearchCategory!=='全部')u+=`&category=${encodeURIComponent(currentSearchCategory)}`;
       const d=await api(u);if(d)renderNewsCards('searchResultList',d.items,false);
     });
   }
+}
+function setSearchSort(sort){
+  searchSort=sort;
+  document.querySelectorAll('#searchSortBar .sort-btn').forEach(b=>b.classList.toggle('active',b.dataset.sort===sort));
+  doSearch();
 }
 
 // ==================== DETAIL ====================
@@ -668,6 +756,8 @@ async function openDetail(newsId){
   const data=await api(`/api/news/${newsId}`);
   if(!data){document.getElementById('detailContent').innerHTML='<div class="empty-state"><p>新闻不存在</p></div>';return;}
   await api('/api/user/reading-history',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({news_id:newsId})});
+  // 记录点击 (排序算法用)
+  api(`/api/news/${newsId}/click`,{method:'POST'});
 
   // 构建 AI 总结区域
   let aiHtml='';
@@ -689,7 +779,9 @@ async function openDetail(newsId){
 
   document.getElementById('detailContent').innerHTML=`
     <div class="detail-header"><h1>${esc(data.title)}</h1>
-      <div class="detail-meta"><span class="cat-tag ${data.category}">${data.category}</span><span class="sep"></span><span>发布: ${data.publish_date||'未知'}</span>${data.source?`<span class="sep"></span><span>来源: ${esc(data.source)}</span>`:''}<span class="sep"></span><span>浏览: ${data.views||0} 次</span></div></div>
+      <div class="detail-meta"><span class="cat-tag ${data.category}">${data.category}</span><span class="sep"></span><span>发布: ${data.publish_date||'未知'}</span>${data.source?`<span class="sep"></span><span>来源: ${esc(data.source)}</span>`:''}<span class="sep"></span><span>浏览: ${data.views||0} 次</span>
+      ${currentUser&&currentUser.role==='admin'?`<span class="sep"></span><button class="btn-sm danger" onclick="markNewsAsInvalid('${newsId}')" style="font-size:.7rem;padding:2px 8px">标记无效</button>`:''}
+      </div></div>
     <div class="detail-content"><div class="text">${esc(data.content||'暂无正文')}</div>
       <div class="detail-source">原文链接: <a href="${data.url||'#'}" target="_blank" rel="noopener">${data.url||'无'}</a></div></div>
     ${aiHtml}`;
@@ -730,6 +822,17 @@ async function loadProfile(){
     document.getElementById('toggleDeadline').classList.toggle('on',!!data.preferences.deadline_reminder);
     document.getElementById('prefCats').textContent=data.preferences.preferred_categories||'全部';
     document.getElementById('prefKws').textContent=data.preferences.preferred_keywords||'无';
+  }
+  // 兴趣权重 (AI自动学习)
+  if(data.interest_weights && data.interest_weights.length){
+    const maxW=Math.max(...data.interest_weights.map(w=>w.weight),1);
+    document.getElementById('interestWeights').innerHTML=data.interest_weights.map(w=>`
+      <div class="iw-row"><span class="iw-cat">${w.category}</span>
+      <div class="iw-bar"><div class="iw-fill" style="width:${(w.weight/maxW*100).toFixed(0)}%"></div></div>
+      <span class="iw-val">${w.click_count||0}次</span></div>
+    `).join('');
+  }else{
+    document.getElementById('interestWeights').innerHTML='<span style="color:var(--text-dim);font-size:.78rem">浏览新闻后 AI 将自动学习您的兴趣偏好</span>';
   }
 }
 async function togglePref(field){
@@ -806,6 +909,7 @@ async function loadAdmin(){
     document.getElementById('pushLogTable').innerHTML=logs.map(l=>`<tr><td>${l.created_at}</td><td>${l.push_type}</td><td>${l.target_count}</td><td>${l.success_count}</td><td>${l.news_count}</td></tr>`).join('');
   }
   loadScanLogs();
+  loadFilteredNews(1);
 }
 
 async function triggerPush(){
@@ -851,16 +955,106 @@ async function refetchAllContent(){
 }
 
 // ==================== SITE MANAGEMENT ====================
+let analyzedConfig = null;  // 缓存分析结果
+let analyzedSiteName = '';
+
 function showAddSiteModal(){
   document.getElementById('siteModalTitle').textContent='添加监测站点';
   document.getElementById('editSiteId').value='';
   document.getElementById('newSiteName').value='';
   document.getElementById('newSiteUrl').value='';
-  document.getElementById('newSiteFreq').value='每日1次';
+  document.getElementById('newSiteFreq').value='每日2次';
   document.getElementById('newSiteConfig').value='';
+  document.getElementById('analyzeResult').style.display='none';
+  document.getElementById('analyzeLoading').style.display='none';
+  document.getElementById('aiFixStatus').textContent='';
+  analyzedConfig=null; analyzedSiteName='';
+  document.getElementById('btnSmartAdd').style.display='';
+  document.getElementById('btnSimpleAdd').textContent='仅保存';
   document.getElementById('addSiteModal').classList.add('show');
 }
 function closeAddSiteModal(){document.getElementById('addSiteModal').classList.remove('show');}
+
+async function autoAnalyzeSite(){
+  const url=document.getElementById('newSiteUrl').value.trim();
+  if(!url){alert('请先输入新闻列表页 URL');return;}
+  const btn=document.getElementById('btnAnalyze');
+  const loading=document.getElementById('analyzeLoading');
+  const result=document.getElementById('analyzeResult');
+  btn.disabled=true; btn.textContent='分析中...';
+  loading.style.display='block'; result.style.display='none';
+
+  try{
+    const res=await fetch('/api/admin/sites/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const json=await res.json();
+    if(json.code!==0){result.style.display='block';result.innerHTML='<span style="color:var(--red)">分析失败: '+esc(json.msg)+'</span>';return;}
+
+    const d=json.data;
+    analyzedConfig=d.config;
+    analyzedSiteName=d.site_name;
+
+    // 填充表单
+    if(d.site_name && !document.getElementById('newSiteName').value){
+      document.getElementById('newSiteName').value=d.site_name;
+    }
+    document.getElementById('newSiteConfig').value=JSON.stringify(d.config,null,2);
+
+    // 显示分析结果
+    let html=`<strong style="color:var(--accent)">分析完成: ${esc(d.site_name||'未知站点')}</strong><br>`;
+    html+=`${esc(d.report.summary)}<br>`;
+    html+=`<span style="color:var(--text-dim);font-size:.75rem">列表选择器: ${esc(d.config.list_item_selector)} | 正文选择器: ${esc(d.config.detail_content_selector)}</span>`;
+    if(d.report.pagination_detected) html+=`<br><span style="color:var(--text-dim);font-size:.75rem">分页: ${esc(d.config.list_pagination)}</span>`;
+    if(d.report.sample_titles.length){
+      html+=`<br><span style="color:var(--text-dim);font-size:.75rem">样本标题:</span><br>`;
+      d.report.sample_titles.forEach(t=>{html+=`<span style="color:var(--text-dim);font-size:.72rem">  · ${esc(t)}</span><br>`;});
+    }
+    result.innerHTML=html;
+    result.style.display='block';
+
+    // 更新按钮样式
+    btn.textContent='重新分析';
+  }catch(e){
+    result.style.display='block';
+    result.innerHTML='<span style="color:var(--red)">网络错误: '+esc(String(e))+'</span>';
+  }finally{
+    btn.disabled=false;
+    loading.style.display='none';
+  }
+}
+
+async function saveNewSiteSmart(){
+  const name=document.getElementById('newSiteName').value.trim();
+  const url=document.getElementById('newSiteUrl').value.trim();
+  const freq=document.getElementById('newSiteFreq').value;
+  if(!name){alert('请输入站点名称');return;}
+  if(!url){alert('请输入网站 URL');return;}
+
+  const btn=document.querySelector('#addSiteModal .btn-primary');
+  btn.disabled=true; btn.textContent='正在分析并添加...';
+
+  try{
+    const res=await fetch('/api/admin/sites/add-and-scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,url,frequency:freq})});
+    const json=await res.json();
+    if(json.code===0){
+      const d=json.data;
+      // 显示结果
+      const result=document.getElementById('analyzeResult');
+      let html=`<strong style="color:var(--green)">✓ ${esc(d.msg)}</strong><br>`;
+      html+=`<span style="color:var(--text-dim);font-size:.75rem">配置已自动生成，首次采集已在后台启动。</span>`;
+      result.innerHTML=html; result.style.display='block';
+
+      // 1.5秒后关闭并刷新
+      setTimeout(()=>{closeAddSiteModal();loadAdmin();setTimeout(loadScanLogs,2000);},1500);
+    }else{
+      alert(json.msg);
+    }
+  }catch(e){
+    alert('操作失败: '+e.message);
+  }finally{
+    btn.disabled=false; btn.textContent='一键添加并自动采集';
+  }
+}
+
 async function editSite(siteId){
   const sites=await api('/api/admin/sites');if(!sites)return;
   const s=sites.find(x=>x.id===siteId);if(!s)return;
@@ -870,10 +1064,74 @@ async function editSite(siteId){
   document.getElementById('newSiteUrl').value=s.url||'';
   document.getElementById('newSiteFreq').value=s.frequency||'每日1次';
   document.getElementById('newSiteConfig').value=s.scraper_config?JSON.stringify(JSON.parse(s.scraper_config),null,2):'';
+  document.getElementById('analyzeResult').style.display='none';
+  document.getElementById('analyzeLoading').style.display='none';
+  document.getElementById('aiFixStatus').textContent='';
+  analyzedConfig=null;
+  // 编辑模式: 隐藏一键添加按钮, 改为保存修改
+  document.getElementById('btnSmartAdd').style.display='none';
+  document.getElementById('btnSimpleAdd').textContent='保存修改';
   document.getElementById('addSiteModal').classList.add('show');
 }
 function validateSiteConfig(){
   try{const c=JSON.parse(document.getElementById('newSiteConfig').value);alert('JSON 格式正确! 字段: '+Object.keys(c).join(', '));}catch(e){alert('JSON 格式错误: '+e.message);}
+}
+
+async function aiFixScraper(){
+  const editId=document.getElementById('editSiteId').value;
+  const url=document.getElementById('newSiteUrl').value.trim();
+  const btn=document.getElementById('btnAiFix');
+  const status=document.getElementById('aiFixStatus');
+
+  if(!editId){
+    // 添加模式：用输入的 URL 调用分析接口
+    if(!url){alert('请输入网站 URL');return;}
+    btn.disabled=true; btn.textContent='AI分析中...';
+    status.textContent='正在调用 AI 分析网页...';
+    status.style.color='var(--text-dim)';
+    try{
+      const res=await fetch('/api/admin/sites/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+      const json=await res.json();
+      if(json.code===0){
+        document.getElementById('newSiteConfig').value=JSON.stringify(json.data.config,null,2);
+        if(json.data.site_name && !document.getElementById('newSiteName').value){
+          document.getElementById('newSiteName').value=json.data.site_name;
+        }
+        status.textContent='分析完成: '+esc(json.data.report.summary);
+        status.style.color='var(--green)';
+      }else{
+        status.textContent='分析失败: '+esc(json.msg);
+        status.style.color='var(--red)';
+      }
+    }catch(e){
+      status.textContent='网络错误: '+esc(String(e));
+      status.style.color='var(--red)';
+    }finally{
+      btn.disabled=false; btn.textContent='AI修复';
+    }
+  }else{
+    // 编辑模式：调用 AI fix 接口
+    btn.disabled=true; btn.textContent='AI修复中...';
+    status.textContent='正在调用 AI 重新分析...';
+    status.style.color='var(--text-dim)';
+    try{
+      const res=await fetch(`/api/admin/sites/${editId}/ai-fix`,{method:'POST',headers:{'Content-Type':'application/json'}});
+      const json=await res.json();
+      if(json.code===0){
+        document.getElementById('newSiteConfig').value=JSON.stringify(json.data.config,null,2);
+        status.textContent='修复成功: '+esc(json.data.report);
+        status.style.color='var(--green)';
+      }else{
+        status.textContent='修复失败: '+esc(json.msg);
+        status.style.color='var(--red)';
+      }
+    }catch(e){
+      status.textContent='网络错误: '+esc(String(e));
+      status.style.color='var(--red)';
+    }finally{
+      btn.disabled=false; btn.textContent='AI修复';
+    }
+  }
 }
 async function saveNewSite(){
   const editId=document.getElementById('editSiteId').value;
@@ -897,26 +1155,181 @@ async function toggleSiteStatus(siteId,newStatus){
 async function deleteSite(siteId){if(!confirm('确定删除该站点?'))return;await api(`/api/admin/sites/${siteId}`,{method:'DELETE'});loadAdmin();}
 
 // ==================== SCAN FUNCTIONS ====================
+let scanPollTimer = null;
+
+function showProgressPanel(){
+  document.getElementById('scanProgress').classList.add('show');
+  document.getElementById('progressLabel').textContent='准备中...';
+  document.getElementById('progressPct').textContent='—';
+  document.getElementById('progressBar').style.width='0';
+  document.getElementById('progressBar').classList.remove('done');
+  document.getElementById('progressDetail').innerHTML='<span class="phase-dot"></span> 正在启动...';
+}
+
 async function startFullScan(){
-  const msg=document.getElementById('scanMsg');
-  msg.style.display='block';msg.innerHTML='<div class="loader">正在启动全站扫描...</div>';
+  showProgressPanel();
   const data=await api('/api/admin/scan-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pages:3})});
-  if(data){msg.innerHTML='<strong>'+data.msg+'</strong><br>查看下方采集日志了解进度';}
-  else{msg.innerHTML='<span style="color:var(--red)">扫描启动失败</span>';}
-  setTimeout(loadScanLogs,3000);
+  if(data){
+    document.getElementById('progressDetail').innerHTML='<span class="phase-dot"></span> '+data.msg;
+    startProgressPolling();
+  }else{
+    document.getElementById('progressDetail').innerHTML='<span class="err">扫描启动失败</span>';
+  }
 }
+
 async function scanSite(siteId){
-  const msg=document.getElementById('scanMsg');
-  msg.style.display='block';msg.innerHTML='<div class="loader">正在启动站点扫描...</div>';
+  showProgressPanel();
   const data=await api(`/api/admin/scan-site/${siteId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pages:3})});
-  if(data){msg.innerHTML='<strong>'+data.msg+'</strong>';}
-  else{msg.innerHTML='<span style="color:var(--red)">扫描启动失败</span>';}
-  setTimeout(loadScanLogs,3000);
+  if(data){
+    document.getElementById('progressDetail').innerHTML='<span class="phase-dot"></span> '+data.msg;
+    startProgressPolling();
+  }else{
+    document.getElementById('progressDetail').innerHTML='<span class="err">站点扫描启动失败</span>';
+  }
 }
+
+async function pollScanProgress(){
+  const status=await api('/api/admin/scan-progress');
+  if(!status)return;
+
+  const pct=status.total_pages?Math.round(((status.current_page-1)/status.total_pages)*100):0;
+  const bar=document.getElementById('progressBar');
+  bar.style.width=(status.active?Math.min(pct,95):0)+'%';
+
+  // 阶段标签
+  const phaseMap={analyzing:'分析中',listing:'获取列表',detail:'采集详情',saving:'保存中',healing:'自动修复中',done:'完成'};
+  const phaseName=phaseMap[status.phase]||status.phase||'等待中';
+  document.getElementById('progressLabel').textContent=status.active?phaseName:(status.phase==='done'?'采集完成':'就绪');
+  // 修复阶段用橙色文字
+  document.getElementById('progressLabel').style.color=status.phase==='healing'?'var(--orange)':'';
+
+  // 百分比
+  if(status.active){
+    document.getElementById('progressPct').textContent=Math.min(pct,95)+'%';
+  }else if(status.phase==='done'){
+    document.getElementById('progressPct').textContent='100%';
+    bar.style.width='100%';
+    bar.classList.add('done');
+  }
+
+  // 详情
+  let detail=status.status_text||'';
+  if(status.active){
+    if(status.phase==='healing'){
+      // 修复阶段: 只显示修复状态，保留进度条不倒退
+      document.getElementById('progressDetail').innerHTML='<span class="phase-dot"></span> '+detail;
+    }else{
+      if(status.type==='full'){
+        detail+=` | 站点 <span class="val">${status.current_site_index}/${status.total_sites}</span>: ${esc(status.current_site_name)}`;
+      }
+      detail+=` | 第 <span class="val">${status.current_page||0}/${status.total_pages||0}</span> 页`;
+      if(status.phase==='detail'){
+        detail+=` | 详情 <span class="val">${status.detail_index||0}/${status.detail_total||0}</span>`;
+      }
+      detail+=` | 已发现 <span class="val">${status.news_found||0}</span> 条`;
+      if(status.filtered_count>0)detail+=` <span class="warn">(过滤: ${status.filtered_count})</span>`;
+      if(status.error_count>0)detail+=` <span class="err">(错误: ${status.error_count})</span>`;
+      document.getElementById('progressDetail').innerHTML='<span class="phase-dot"></span> '+detail;
+    }
+  }else if(status.phase==='done'){
+    detail=`采集完成! 共发现 <span class="val">${status.news_found||0}</span> 条新闻，入库 <span class="val">${status.news_saved||0}</span> 条`;
+    if(status.filtered_count>0)detail+=` | <span class="warn">过滤了 ${status.filtered_count} 条无效内容</span>`;
+    if(status.error_count>0)detail+=` | <span class="err">错误: ${status.error_count}</span>`;
+    detail+=` | 开始于 ${status.start_time}`;
+    document.getElementById('progressDetail').innerHTML=`<span class="phase-dot done"></span> ${detail}`;
+    stopProgressPolling();
+    setTimeout(loadScanLogs,500);
+    setTimeout(()=>loadFilteredNews(1),600);
+  }
+
+  // 若活跃则继续轮询
+  if(status.active)scanPollTimer=setTimeout(pollScanProgress,800);
+}
+
+function startProgressPolling(){
+  stopProgressPolling();
+  pollScanProgress();
+}
+
+function stopProgressPolling(){
+  if(scanPollTimer){clearTimeout(scanPollTimer);scanPollTimer=null;}
+}
+
 async function loadScanLogs(){
   const logs=await api('/api/admin/scan-logs');
   if(!logs||!logs.length){document.getElementById('scanLogsContainer').innerHTML='<p style="color:var(--muted);padding:14px;margin:0">暂无采集记录</p>';return;}
   document.getElementById('scanLogsContainer').innerHTML='<table class="admin-table"><thead><tr><th>时间</th><th class="center">扫描站点</th><th class="center">成功/失败</th><th class="center">新增新闻</th><th class="center">耗时</th></tr></thead><tbody>'+logs.map(l=>`<tr><td>${l.created_at||'-'}</td><td class="center">${l.total_sites}</td><td class="center">${l.success_count} / ${l.fail_count}</td><td class="center">${l.new_news_count}</td><td class="center">${l.duration_seconds}s</td></tr>`).join('')+'</tbody></table>';
+}
+
+// ==================== FILTERED NEWS ====================
+let filteredPage = 1;
+
+async function loadFilteredNews(page){
+  if(page)filteredPage=page;
+  const data=await api(`/api/admin/filtered-news?page=${filteredPage}&per_page=15`);
+  if(!data||!data.items.length){
+    document.getElementById('filteredNewsContainer').innerHTML='<p style="color:var(--muted);padding:14px;margin:0">暂无过滤记录</p>';
+    return;
+  }
+  document.getElementById('filteredNewsContainer').innerHTML=
+    '<table class="admin-table"><thead><tr><th style="width:40%">标题</th><th style="width:200px">来源</th><th style="width:160px">过滤原因</th><th style="width:90px" class="center">时间</th><th style="width:100px" class="center">操作</th></tr></thead><tbody>'+
+    data.items.map(f=>`<tr>
+      <td title="${esc(f.title)}">${esc((f.title||'').substring(0,50))}</td>
+      <td style="font-size:.72rem;color:var(--text-muted);max-width:180px;word-break:break-all">${esc(f.source||f.url||'-')}</td>
+      <td style="font-size:.72rem;color:var(--orange)">${esc(f.reason||'-')}</td>
+      <td class="center" style="font-size:.72rem">${f.filtered_at||''}</td>
+      <td class="center" style="white-space:nowrap">
+        <button class="btn-sm play" onclick="restoreFiltered(${f.id})" title="恢复到新闻列表">恢复</button>
+        <button class="btn-sm danger" onclick="deleteFiltered(${f.id})">删除</button>
+      </td>
+    </tr>`).join('')+'</tbody></table>';
+  // 分页
+  if(data.total_pages>1){
+    let ph='';for(let i=1;i<=data.total_pages;i++)ph+=`<button class="page-btn${i===filteredPage?' active':''}" onclick="loadFilteredNews(${i})">${i}</button>`;
+    document.getElementById('filteredNewsContainer').innerHTML+=`<div class="pagination" style="margin-top:10px">${ph}</div>`;
+  }
+}
+
+async function restoreFiltered(fid){
+  if(!confirm('确认将该内容恢复到新闻列表？'))return;
+  const json=await api(`/api/admin/filtered-news/${fid}/restore`,{method:'POST'});
+  if(json&&json.code===0){
+    loadFilteredNews(filteredPage);
+  }else{
+    alert('恢复失败: '+(json?json.msg:'网络错误'));
+  }
+}
+
+async function deleteFiltered(fid){
+  if(!confirm('确认永久删除该过滤记录？'))return;
+  await api(`/api/admin/filtered-news/${fid}`,{method:'DELETE'});
+  loadFilteredNews(filteredPage);
+}
+
+async function filterExistingNews(){
+  const newsId=document.getElementById('inputFilterNewsId').value.trim();
+  if(!newsId){alert('请输入新闻ID');return;}
+  const msg=document.getElementById('filterNewsMsg');
+  msg.textContent='处理中...';msg.style.color='var(--text-dim)';
+  const json=await api(`/api/admin/news/${encodeURIComponent(newsId)}/filter`,{method:'POST'});
+  if(json&&json.code===0){
+    msg.textContent=json.data.msg;msg.style.color='var(--green)';
+    document.getElementById('inputFilterNewsId').value='';
+    loadFilteredNews(1);
+  }else{
+    msg.textContent='失败: '+(json?json.msg:'网络错误');msg.style.color='var(--red)';
+  }
+}
+
+async function markNewsAsInvalid(newsId){
+  if(!confirm('确认将该新闻标记为无效内容？将移到过滤列表。'))return;
+  const json=await api(`/api/admin/news/${encodeURIComponent(newsId)}/filter`,{method:'POST'});
+  if(json&&json.code===0){
+    alert('已标记为无效: '+json.data.msg);
+    navigate('home');
+  }else{
+    alert('操作失败: '+(json?json.msg:'网络错误'));
+  }
 }
 
 // USER CREATION
@@ -932,6 +1345,56 @@ async function createUser(){
   const json=await res.json();
   if(json.code===0){closeCreateUserModal();loadAdmin();}
   else alert(json.msg);
+}
+
+// ==================== NEWS CLEANUP ====================
+async function showDeleteSourceModal(){
+  document.getElementById('deleteSourceModal').classList.add('show');
+  document.getElementById('deleteSourceResult').textContent='';
+  // 加载来源列表
+  const sources=await api('/api/admin/news/sources');
+  const sel=document.getElementById('selectDeleteSource');
+  if(sources&&sources.length){
+    sel.innerHTML='<option value="">-- 请选择来源 --</option>'+sources.map(s=>`<option value="${esc(s.source)}">${esc(s.source)} (${s.cnt}条)</option>`).join('');
+  }else{
+    sel.innerHTML='<option value="">暂无来源数据</option>';
+  }
+}
+function closeDeleteSourceModal(){document.getElementById('deleteSourceModal').classList.remove('show');}
+
+async function deleteNewsBySource(){
+  const source=document.getElementById('selectDeleteSource').value;
+  if(!source){alert('请选择要删除的新闻来源');return;}
+  const count=document.getElementById('selectDeleteSource').selectedOptions[0].text.match(/\((\d+)条\)/);
+  const cnt=count?parseInt(count[1]):0;
+  if(!confirm(`确认删除来源 [${source}] 的全部 ${cnt} 条新闻？此操作不可恢复。`))return;
+
+  const btn=document.getElementById('btnDeleteSource');
+  btn.disabled=true; btn.textContent='删除中...';
+  const res=await api('/api/admin/news/by-source',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({source})});
+  if(res&&res.code===0){
+    document.getElementById('deleteSourceResult').innerHTML=`<span style="color:var(--green)">${res.data.msg}</span>`;
+    closeDeleteSourceModal();
+    loadAdmin();
+  }else{
+    document.getElementById('deleteSourceResult').innerHTML=`<span style="color:var(--red)">删除失败: ${res?res.msg:'网络错误'}</span>`;
+  }
+  btn.disabled=false; btn.textContent='确认删除';
+}
+
+async function deleteAllNews(){
+  if(!confirm('⚠️ 确认删除所有新闻？\n\n这将清空全部新闻数据及关联的阅读历史、兴趣权重、通知和过滤记录。\n此操作不可恢复！'))return;
+  if(!confirm('再次确认：输入 "DELETE_ALL" 以继续'))return;
+  const code=prompt('请输入确认码: CONFIRM_DELETE_ALL');
+  if(code!=='CONFIRM_DELETE_ALL'){alert('确认码错误，操作已取消');return;}
+
+  const res=await api('/api/admin/news/all',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:'CONFIRM_DELETE_ALL'})});
+  if(res&&res.code===0){
+    alert(res.data.msg);
+    loadAdmin();
+  }else{
+    alert('删除失败: '+(res?res.msg:'网络错误'));
+  }
 }
 
 // ==================== UTILS ====================

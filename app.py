@@ -182,11 +182,13 @@ def api_stats():
 
 @app.route("/api/news")
 def api_news_list():
+    """新闻列表 API，支持排序: newest(最新), popular(最热), smart(智能推荐)"""
     try:
         page = int(request.args.get("page", 1))
         per_page = int(request.args.get("per_page", 20))
         category = request.args.get("category", "")
         keyword = request.args.get("keyword", "")
+        sort = request.args.get("sort", "newest")  # newest | popular | smart
         offset = (page - 1) * per_page
 
         conn = get_db()
@@ -206,10 +208,20 @@ def api_news_list():
             cur.execute(f"SELECT COUNT(*) AS total FROM news{where_clause}", params)
             total = cur.fetchone()["total"]
 
+            # 排序规则
+            if sort == "popular":
+                order_by = "COALESCE(click_count,0) DESC, publish_date DESC"
+            elif sort == "smart":
+                order_by = "(COALESCE(click_count,0)*5 + DATEDIFF(NOW(),publish_date)*(-0.3)) DESC"
+            else:
+                # 最新: 先按新闻来源分组统计，再按发布时间降序
+                order_by = "source, publish_date DESC"
+
             cur.execute(
-                f"""SELECT news_id, title, category, publish_date, source, views, url,
+                f"""SELECT news_id, title, category, publish_date, source, views,
+                    COALESCE(click_count,0) AS click_count,
                     LEFT(content, 200) AS summary FROM news{where_clause}
-                    ORDER BY publish_date DESC LIMIT %s OFFSET %s""",
+                    ORDER BY {order_by} LIMIT %s OFFSET %s""",
                 params + [per_page, offset]
             )
             items = cur.fetchall()
@@ -245,6 +257,43 @@ def api_news_detail(news_id):
         if item.get("ai_summarized_at"):
             item["ai_summarized_at"] = str(item["ai_summarized_at"])
         return jsonify({"code": 0, "data": item})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+@app.route("/api/news/<news_id>/click", methods=["POST"])
+@login_required
+def api_news_click(news_id):
+    """记录用户点击 + 递增 click_count + 自动更新用户兴趣权重"""
+    try:
+        user_id = session["user_id"]
+        conn = get_db()
+        with conn.cursor() as cur:
+            # 1. 递增新闻点击总数
+            cur.execute("UPDATE news SET click_count = COALESCE(click_count,0) + 1 WHERE news_id = %s", [news_id])
+
+            # 2. 记录用户点击（去重）
+            cur.execute(
+                "INSERT IGNORE INTO user_news_clicks (user_id, news_id) VALUES (%s,%s)",
+                [user_id, news_id]
+            )
+
+            # 3. 获取该新闻的分类，更新用户兴趣权重
+            cur.execute("SELECT category FROM news WHERE news_id = %s", [news_id])
+            row = cur.fetchone()
+            if row:
+                cat = row["category"]
+                cur.execute(
+                    """INSERT INTO user_interest_weights (user_id, category, weight, click_count)
+                       VALUES (%s,%s,1.1,1)
+                       ON DUPLICATE KEY UPDATE
+                       click_count = click_count + 1,
+                       weight = LEAST(weight + 0.05, 5.0)""",
+                    [user_id, cat]
+                )
+        conn.commit()
+        conn.close()
+        return jsonify({"code": 0})
     except Exception as e:
         return jsonify({"code": -1, "msg": str(e)}), 500
 
@@ -326,6 +375,13 @@ def api_user_profile():
             cur.execute("SELECT * FROM user_preferences WHERE user_id=%s", [user_id])
             prefs = cur.fetchone()
 
+            # 兴趣权重 (AI自动学习)
+            cur.execute(
+                "SELECT category, weight, click_count FROM user_interest_weights WHERE user_id=%s ORDER BY weight DESC",
+                [user_id]
+            )
+            interest_weights = cur.fetchall()
+
             # 未读通知数
             cur.execute(
                 "SELECT COUNT(*) AS unread FROM notifications WHERE user_id=%s AND is_read=0",
@@ -339,6 +395,7 @@ def api_user_profile():
             "user": date_fmt(user),
             "stats": {"total_reads": total_reads, "month_reads": month_reads, "favorites": favorites},
             "preferences": date_fmt(prefs) if prefs else None,
+            "interest_weights": interest_weights,
             "unread_notifications": unread,
         }})
     except Exception as e:
@@ -452,36 +509,58 @@ def api_mark_all_read():
 @app.route("/api/user/recommended", methods=["GET"])
 @login_required
 def api_recommended():
-    """根据用户偏好推荐新闻"""
+    """智能推荐: 用户兴趣权重 × 点击热度 × 时间衰减"""
     try:
         user_id = session["user_id"]
         conn = get_db()
         with conn.cursor() as cur:
-            # 获取用户偏好
-            cur.execute("SELECT * FROM user_preferences WHERE user_id=%s", [user_id])
-            prefs = cur.fetchone()
+            # 获取用户兴趣权重
+            cur.execute(
+                "SELECT category, weight FROM user_interest_weights WHERE user_id=%s ORDER BY weight DESC",
+                [user_id]
+            )
+            weights = {row["category"]: row["weight"] for row in cur.fetchall()}
 
-            if not prefs or not prefs.get("preferred_categories"):
-                # 无偏好，返回最新新闻
+            if not weights:
+                # 无点击记录，返回最新新闻（按来源分组+日期降序）
                 cur.execute(
-                    """SELECT news_id, title, category, publish_date, source, views, url,
+                    """SELECT news_id, title, category, publish_date, source, views,
+                        COALESCE(click_count,0) AS click_count,
                         LEFT(content, 200) AS summary FROM news
-                        ORDER BY publish_date DESC LIMIT 8"""
+                        ORDER BY source, publish_date DESC LIMIT 8"""
                 )
                 items = cur.fetchall()
             else:
-                cats = prefs["preferred_categories"].split(",")
-                placeholders = ",".join(["%s"] * len(cats))
+                # 有偏好: 按兴趣加权排序
+                # score = click_count*5 + DATEDIFF(NOW(),publish_date)*(-0.3) + category_weight*10
+                items = []
+                all_cats = list(weights.keys())
+                placeholders = ",".join(["%s"] * len(all_cats))
+                # 优先返回偏好类目
                 cur.execute(
-                    f"""SELECT news_id, title, category, publish_date, source, views, url,
+                    f"""SELECT news_id, title, category, publish_date, source, views,
+                        COALESCE(click_count,0) AS click_count,
                         LEFT(content, 200) AS summary FROM news
                         WHERE category IN ({placeholders})
-                        ORDER BY publish_date DESC LIMIT 8""",
-                    cats
+                        ORDER BY (COALESCE(click_count,0)*5 + DATEDIFF(NOW(),publish_date)*(-0.3)) DESC
+                        LIMIT 12""",
+                    all_cats
                 )
                 items = cur.fetchall()
 
+                # 叠加兴趣权重到 relevance 字段
+                for item in items:
+                    cat_w = weights.get(item["category"], 1.0)
+                    click_bonus = (item.get("click_count") or 0) * 5
+                    # 时间衰减: 每1天减0.3分
+                    days_ago = 0
+                    if item.get("publish_date"):
+                        days_ago = max(0, (datetime.now().date() - item["publish_date"]).days)
+                    time_penalty = days_ago * (-0.3)
+                    score = click_bonus + time_penalty + cat_w * 10
+                    item["relevance"] = max(0, min(100, int(score * 2)))
         conn.close()
+
         for item in items:
             if item.get("publish_date"):
                 item["publish_date"] = str(item["publish_date"])
@@ -623,6 +702,128 @@ def api_toggle_user_status(user_id):
 
 # ==================== 监测站点管理 API ====================
 
+@app.route("/api/admin/sites/analyze", methods=["POST"])
+@admin_required
+def api_analyze_site():
+    """智能分析目标网站（AI优先 → 规则回退）"""
+    try:
+        data = request.get_json()
+        url = data.get("url", "").strip()
+        if not url:
+            return jsonify({"code": -1, "msg": "请输入网站 URL"})
+
+        import site_scanner
+        # 策略0: AI 分析
+        ai_config, ai_report = site_scanner.ai_generate_scraper_config(url)
+        if ai_config:
+            return jsonify({"code": 0, "data": {
+                "site_name": ai_config.get("base_url", url),
+                "config": ai_config,
+                "report": {
+                    "list_candidates": 0,
+                    "detail_sampled": False,
+                    "pagination_detected": bool(ai_config.get("list_pagination")),
+                    "sample_titles": [],
+                    "summary": f"AI 分析: {ai_report}",
+                },
+            }})
+
+        # 策略1: 规则分析回退
+        config, report = site_scanner.auto_analyze_site(url)
+
+        return jsonify({"code": 0, "data": {
+            "site_name": report["site_name"],
+            "config": config,
+            "report": {
+                "list_candidates": report["list_candidates"],
+                "detail_sampled": report["detail_sampled"],
+                "pagination_detected": report["pagination_detected"],
+                "sample_titles": report["sample_titles"],
+                "summary": report["summary"] if isinstance(report, dict) else str(report),
+            },
+        }})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+@app.route("/api/admin/sites/add-and-scan", methods=["POST"])
+@admin_required
+def api_add_and_scan():
+    """添加站点 + AI生成配置 + 自动爬取（一步到位）"""
+    try:
+        data = request.get_json()
+        name = data.get("name", "").strip()
+        url = data.get("url", "").strip()
+        freq = data.get("frequency", "每日2次")
+
+        if not name:
+            return jsonify({"code": -1, "msg": "站点名称不能为空"})
+        if not url:
+            return jsonify({"code": -1, "msg": "请输入网站 URL"})
+
+        # 1. 智能分析: AI 优先 → 规则回退
+        import site_scanner
+        ai_msg = ""
+        ai_config, ai_report = site_scanner.ai_generate_scraper_config(url)
+        if ai_config:
+            config = ai_config
+            ai_msg = f"（AI已分析: {ai_report}）"
+        else:
+            try:
+                config, report = site_scanner.auto_analyze_site(url)
+                ai_msg = f"（规则分析: {report.get('summary', '')}）"
+            except Exception as analyze_err:
+                # 分析失败时使用通用默认配置
+                if not url.startswith("http"):
+                    url = "https://" + url
+                base_url = "/".join(url.split("/")[:3])
+                config = {
+                    "list_url": url.rstrip("/"),
+                    "base_url": base_url,
+                    "encoding": "utf-8",
+                    "detail_meta_source": "auto",
+                    "list_item_selector": "a[href]",
+                    "detail_content_selector": "div.article-content",
+                    "news_id_pattern": r"(\d+)",
+                    "list_pagination": "",
+                }
+                ai_msg = f"（分析失败，使用默认配置）"
+
+        config_json = json.dumps(config, ensure_ascii=False)
+
+        # 2. 写入数据库
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO monitor_sites (name, url, frequency, scraper_config, status) VALUES (%s,%s,%s,%s,'running')",
+                [name, url, freq, config_json]
+            )
+            site_id = cur.lastrowid
+        conn.commit()
+
+        # 3. 获取站点完整信息用于爬取
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM monitor_sites WHERE id=%s", [site_id])
+            site = cur.fetchone()
+        conn.close()
+
+        # 4. 后台启动首次爬取
+        import threading
+        t = threading.Thread(target=site_scanner.scan_site, kwargs={"site": site, "pages": 2}, daemon=True)
+        t.start()
+
+        return jsonify({"code": 0, "data": {
+            "site_id": site_id,
+            "site_name": name,
+            "config": config,
+            "msg": f"站点已添加{ai_msg}，首次爬取已启动",
+        }})
+    except pymysql.err.IntegrityError:
+        return jsonify({"code": -1, "msg": "站点已存在"})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
 @app.route("/api/admin/sites", methods=["GET"])
 @admin_required
 def api_admin_sites():
@@ -643,26 +844,46 @@ def api_admin_sites():
 @app.route("/api/admin/sites", methods=["POST"])
 @admin_required
 def api_create_site():
-    """添加监测站点"""
+    """添加监测站点（AI优先生成爬虫配置，失败回退规则分析）"""
     try:
         data = request.get_json()
         name = data.get("name", "").strip()
         url = data.get("url", "").strip()
         freq = data.get("frequency", "每日2次")
         config = data.get("scraper_config", "")
+        ai_msg = ""
         if not name:
             return jsonify({"code": -1, "msg": "站点名称不能为空"})
         if isinstance(config, dict):
             config = json.dumps(config, ensure_ascii=False)
+
+        # 未提供配置时: AI 优先 → 规则分析回退
+        if not config and url:
+            import site_scanner
+            # 策略0: AI 生成
+            ai_config, ai_report = site_scanner.ai_generate_scraper_config(url)
+            if ai_config:
+                config = json.dumps(ai_config, ensure_ascii=False)
+                ai_msg = f"（AI已分析: {ai_report}）"
+            else:
+                # 策略1: 规则分析回退
+                try:
+                    auto_config, report = site_scanner.auto_analyze_site(url)
+                    config = json.dumps(auto_config, ensure_ascii=False)
+                    ai_msg = f"（规则分析: {report.get('summary', '')}）"
+                except Exception:
+                    config = ""
+                    ai_msg = "（分析失败，请手动配置）"
+
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO monitor_sites (name, url, frequency, scraper_config) VALUES (%s,%s,%s,%s)",
+                "INSERT INTO monitor_sites (name, url, frequency, scraper_config, status) VALUES (%s,%s,%s,%s,'running')",
                 [name, url, freq, config]
             )
         conn.commit()
         conn.close()
-        return jsonify({"code": 0, "msg": "站点添加成功"})
+        return jsonify({"code": 0, "data": {"msg": f"站点添加成功{ai_msg}"}})
     except Exception as e:
         return jsonify({"code": -1, "msg": str(e)}), 500
 
@@ -724,6 +945,78 @@ def api_toggle_site_status(site_id):
         return jsonify({"code": -1, "msg": str(e)}), 500
 
 
+@app.route("/api/admin/sites/<int:site_id>/ai-fix", methods=["POST"])
+@admin_required
+def api_ai_fix_site(site_id):
+    """调用 AI 修复指定站点的爬虫配置"""
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM monitor_sites WHERE id=%s", [site_id])
+            site = cur.fetchone()
+        conn.close()
+        if not site:
+            return jsonify({"code": -1, "msg": "站点不存在"}), 404
+
+        url = site.get("url", "")
+        if not url:
+            return jsonify({"code": -1, "msg": "站点无 URL"}), 400
+
+        import site_scanner
+        ai_config, ai_report = site_scanner.ai_generate_scraper_config(url)
+        if ai_config:
+            config_json = json.dumps(ai_config, ensure_ascii=False)
+            conn = get_db()
+            with conn.cursor() as cur:
+                cur.execute("UPDATE monitor_sites SET scraper_config=%s WHERE id=%s", [config_json, site_id])
+            conn.commit()
+            conn.close()
+            return jsonify({"code": 0, "data": {
+                "msg": f"AI 修复成功: {ai_report}",
+                "config": ai_config,
+                "report": ai_report,
+            }})
+        else:
+            return jsonify({"code": -1, "msg": f"AI 修复失败: {ai_report}"}), 500
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+@app.route("/api/admin/sites/<int:site_id>/scraper-config", methods=["GET", "POST"])
+@admin_required
+def api_scraper_config(site_id):
+    """GET: 获取站点爬虫配置 / POST: 更新站点爬虫配置"""
+    if request.method == "GET":
+        try:
+            conn = get_db()
+            with conn.cursor() as cur:
+                cur.execute("SELECT scraper_config FROM monitor_sites WHERE id=%s", [site_id])
+                row = cur.fetchone()
+            conn.close()
+            if not row:
+                return jsonify({"code": -1, "msg": "站点不存在"}), 404
+            config_str = row.get("scraper_config", "") or "{}"
+            config = json.loads(config_str) if config_str else {}
+            return jsonify({"code": 0, "data": {"config": config}})
+        except Exception as e:
+            return jsonify({"code": -1, "msg": str(e)}), 500
+    else:  # POST
+        try:
+            data = request.get_json()
+            new_config = data.get("config", {})
+            if isinstance(new_config, str):
+                new_config = json.loads(new_config)
+            config_json = json.dumps(new_config, ensure_ascii=False)
+            conn = get_db()
+            with conn.cursor() as cur:
+                cur.execute("UPDATE monitor_sites SET scraper_config=%s WHERE id=%s", [config_json, site_id])
+            conn.commit()
+            conn.close()
+            return jsonify({"code": 0, "data": {"msg": "爬虫配置已更新"}})
+        except Exception as e:
+            return jsonify({"code": -1, "msg": str(e)}), 500
+
+
 @app.route("/api/admin/collection-status", methods=["GET"])
 @admin_required
 def api_collection_status():
@@ -770,7 +1063,7 @@ def api_scan_all():
             cur.execute("SELECT COUNT(*) AS c FROM monitor_sites WHERE status='running'")
             count = cur.fetchone()["c"]
         conn.close()
-        return jsonify({"code": 0, "msg": f"全站扫描已启动 ({count} 个站点, 每站 {pages} 页)", "sites": count, "pages": pages})
+        return jsonify({"code": 0, "data": {"msg": f"全站扫描已启动 ({count} 个站点, 每站 {pages} 页)", "sites": count, "pages": pages}})
     except Exception as e:
         return jsonify({"code": -1, "msg": str(e)}), 500
 
@@ -789,13 +1082,23 @@ def api_scan_site(site_id):
         conn.close()
         if not site:
             return jsonify({"code": -1, "msg": "站点不存在"}), 404
-        if not site.get("scraper_config"):
-            return jsonify({"code": -1, "msg": "该站点未配置爬虫规则"}), 400
 
         import threading, site_scanner
         t = threading.Thread(target=site_scanner.scan_site, kwargs={"site": site, "pages": pages}, daemon=True)
         t.start()
-        return jsonify({"code": 0, "msg": f"站点 [{site['name']}] 扫描已启动 ({pages} 页)", "site_id": site_id, "pages": pages})
+        return jsonify({"code": 0, "data": {"msg": f"站点 [{site['name']}] 扫描已启动 ({pages} 页)" + ("（将自动分析）" if not site.get("scraper_config") else ""), "site_id": site_id, "pages": pages}})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+@app.route("/api/admin/scan-progress", methods=["GET"])
+@admin_required
+def api_scan_progress():
+    """获取实时采集进度"""
+    try:
+        import site_scanner
+        status = site_scanner.get_scan_status()
+        return jsonify({"code": 0, "data": status})
     except Exception as e:
         return jsonify({"code": -1, "msg": str(e)}), 500
 
@@ -811,6 +1114,190 @@ def api_scan_logs():
             logs = cur.fetchall()
         conn.close()
         return jsonify({"code": 0, "data": logs})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+# ==================== 新闻清理 API ====================
+
+@app.route("/api/admin/news/sources", methods=["GET"])
+@admin_required
+def api_news_sources():
+    """获取所有新闻来源（去重）"""
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT source, COUNT(*) AS cnt FROM news WHERE source IS NOT NULL AND source != '' GROUP BY source ORDER BY cnt DESC")
+            sources = cur.fetchall()
+        conn.close()
+        return jsonify({"code": 0, "data": sources})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+@app.route("/api/admin/news/all", methods=["DELETE"])
+@admin_required
+def api_delete_all_news():
+    """删除所有新闻"""
+    try:
+        data = request.get_json() or {}
+        confirm = data.get("confirm", "")
+        if confirm != "CONFIRM_DELETE_ALL":
+            return jsonify({"code": -1, "msg": "需要确认码"}), 400
+
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS c FROM news")
+            total = cur.fetchone()["c"]
+            cur.execute("DELETE FROM news")
+            # 同时清理关联数据
+            cur.execute("DELETE FROM user_interest_weights")
+            cur.execute("DELETE FROM user_news_clicks")
+            cur.execute("DELETE FROM reading_history")
+            cur.execute("DELETE FROM notifications")
+            cur.execute("DELETE FROM filtered_news")
+        conn.commit()
+        conn.close()
+        return jsonify({"code": 0, "data": {"msg": f"已删除 {total} 条新闻及关联数据"}})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+@app.route("/api/admin/news/by-source", methods=["DELETE"])
+@admin_required
+def api_delete_news_by_source():
+    """按来源删除新闻"""
+    try:
+        data = request.get_json() or {}
+        source = data.get("source", "").strip()
+        if not source:
+            return jsonify({"code": -1, "msg": "请指定来源"}), 400
+
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS c FROM news WHERE source = %s", [source])
+            count = cur.fetchone()["c"]
+            if count == 0:
+                conn.close()
+                return jsonify({"code": -1, "msg": f"来源 [{source}] 无新闻"}), 404
+
+            cur.execute("DELETE FROM news WHERE source = %s", [source])
+            # 清理已删除新闻的关联通知
+            cur.execute("DELETE FROM notifications WHERE news_id NOT IN (SELECT news_id FROM news)")
+        conn.commit()
+        conn.close()
+        return jsonify({"code": 0, "data": {"msg": f"已删除来源 [{source}] 的 {count} 条新闻"}})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+# ==================== 过滤信息管理 API ====================
+
+@app.route("/api/admin/filtered-news", methods=["GET"])
+@admin_required
+def api_filtered_news_list():
+    """获取被过滤的新闻列表"""
+    try:
+        page = int(request.args.get("page", 1))
+        per_page = int(request.args.get("per_page", 20))
+        offset = (page - 1) * per_page
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS total FROM filtered_news")
+            total = cur.fetchone()["total"]
+            cur.execute(
+                """SELECT id, title, url, source, reason, site_id,
+                   LEFT(content,200) AS summary, filtered_at
+                   FROM filtered_news ORDER BY filtered_at DESC LIMIT %s OFFSET %s""",
+                [per_page, offset]
+            )
+            items = cur.fetchall()
+        conn.close()
+        for item in items:
+            if item.get("filtered_at"):
+                item["filtered_at"] = str(item["filtered_at"])
+        return jsonify({"code": 0, "data": {
+            "items": items, "total": total, "page": page,
+            "total_pages": (total + per_page - 1) // per_page if total > 0 else 0,
+        }})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+@app.route("/api/admin/filtered-news/<int:fid>/restore", methods=["POST"])
+@admin_required
+def api_filtered_news_restore(fid):
+    """将过滤的新闻恢复到新闻列表"""
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM filtered_news WHERE id=%s", [fid])
+            item = cur.fetchone()
+            if not item:
+                conn.close()
+                return jsonify({"code": -1, "msg": "记录不存在"}), 404
+
+            # 生成 news_id
+            import hashlib
+            news_id = hashlib.md5((item["url"] or item["title"]).encode()).hexdigest()[:20]
+
+            # 插入 news 表
+            import site_scanner
+            category = site_scanner.classify_news(item["title"], item.get("content") or "")
+            cur.execute(
+                """INSERT INTO news (news_id, title, category, publish_date, source, views, content, url)
+                   VALUES (%s,%s,%s,NOW(),%s,0,%s,%s)
+                   ON DUPLICATE KEY UPDATE title=VALUES(title), category=VALUES(category)""",
+                [news_id, item["title"][:500], category, item.get("source", ""),
+                 item.get("content", ""), item.get("url", "")]
+            )
+            # 删除 filtered_news 记录
+            cur.execute("DELETE FROM filtered_news WHERE id=%s", [fid])
+        conn.commit()
+        conn.close()
+        return jsonify({"code": 0, "data": {"msg": f"已恢复: {item['title'][:40]}"}})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+@app.route("/api/admin/filtered-news/<int:fid>", methods=["DELETE"])
+@admin_required
+def api_filtered_news_delete(fid):
+    """永久删除过滤的新闻"""
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM filtered_news WHERE id=%s", [fid])
+        conn.commit()
+        conn.close()
+        return jsonify({"code": 0})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+@app.route("/api/admin/news/<news_id>/filter", methods=["POST"])
+@admin_required
+def api_news_filter(news_id):
+    """将新闻列表中的新闻移到过滤列表"""
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM news WHERE news_id=%s", [news_id])
+            item = cur.fetchone()
+            if not item:
+                conn.close()
+                return jsonify({"code": -1, "msg": "新闻不存在"}), 404
+
+            cur.execute(
+                """INSERT INTO filtered_news (title, url, source, content, reason)
+                   VALUES (%s,%s,%s,%s,%s)""",
+                [item["title"][:500], item.get("url", ""), item.get("source", ""),
+                 item.get("content", ""), "管理员手动标记为无效"]
+            )
+            cur.execute("DELETE FROM news WHERE news_id=%s", [news_id])
+        conn.commit()
+        conn.close()
+        return jsonify({"code": 0, "data": {"msg": f"已过滤: {item['title'][:40]}"}})
     except Exception as e:
         return jsonify({"code": -1, "msg": str(e)}), 500
 
@@ -1223,9 +1710,9 @@ def api_trigger_push():
 
             # 2. 获取最近 N 天的新新闻
             cur.execute(
-                """SELECT news_id, title, category, LEFT(content,150) AS summary, publish_date
+                """SELECT news_id, title, category, source, LEFT(content,150) AS summary, publish_date
                    FROM news WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
-                   ORDER BY publish_date DESC""",
+                   ORDER BY source, publish_date DESC""",
                 [days_back]
             )
             recent_news = cur.fetchall()
@@ -1426,6 +1913,20 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
+        # filtered_news - 被过滤的无效内容
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS filtered_news (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(500) NOT NULL,
+                url VARCHAR(500),
+                source VARCHAR(200),
+                content LONGTEXT,
+                reason VARCHAR(300) COMMENT '过滤原因',
+                site_id INT COMMENT '来源站点id',
+                filtered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_filtered_at (filtered_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
         # monitor_sites - 监测站点
         cur.execute("""
             CREATE TABLE IF NOT EXISTS monitor_sites (
@@ -1496,6 +1997,36 @@ def init_db():
             cur.execute("ALTER TABLE news ADD COLUMN ai_summarized_at TIMESTAMP NULL AFTER ai_keypoints")
         except Exception:
             pass
+        # 点击次数 (用于排序算法)
+        try:
+            cur.execute("ALTER TABLE news ADD COLUMN click_count INT DEFAULT 0 AFTER views")
+        except Exception:
+            pass
+        # 用户兴趣权重表
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_interest_weights (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                category VARCHAR(50) NOT NULL,
+                weight FLOAT DEFAULT 1.0 COMMENT '兴趣权重 (阅读越多越高)',
+                click_count INT DEFAULT 0 COMMENT '该类目点击数',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_user_cat (user_id, category),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+        # 用户新闻点击明细 (用于精确统计)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS user_news_clicks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                news_id VARCHAR(64) NOT NULL,
+                clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_user_news (user_id, news_id),
+                INDEX idx_news (news_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
        
         cur.execute("SELECT COUNT(*) AS c FROM monitor_sites")
         if cur.fetchone()["c"] == 0:
