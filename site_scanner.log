@@ -1,0 +1,104 @@
+2026-06-16 13:07:28,478 [INFO] 127.0.0.1 - - [16/Jun/2026 13:07:28] "POST /api/admin/scan-all HTTP/1.1" 200 -
+2026-06-16 13:07:48,725 [INFO]  * Detected change in 'C:\\Users\\Logic\\Desktop\\测试\\site_scanner.py', reloading
+2026-06-16 13:09:01,998 [INFO] --- 开始扫描: 南昌航空大学-南航要闻 (https://www.nchu.edu.cn/xwzx/chyw) ---
+2026-06-16 13:09:01,998 [INFO] 127.0.0.1 - - [16/Jun/2026 13:09:01] "POST /api/admin/scan-all HTTP/1.1" 200 -
+2026-06-16 13:09:01,999 [INFO]   列表页 [1/1]: https://www.nchu.edu.cn/xwzx/chyw?page=1
+2026-06-16 13:09:02,287 [INFO]     发现 20 条新闻链接
+2026-06-16 13:09:45,929 [ERROR]   保存失败 [site_xwzx_chyw_content_192632_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,932 [ERROR]   保存失败 [site_xwzx_chyw_content_192631_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,934 [ERROR]   保存失败 [site_xwzx_chyw_content_192568_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,936 [ERROR]   保存失败 [site_xwzx_chyw_content_192535_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,938 [ERROR]   保存失败 [site_xwzx_chyw_content_192540_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,939 [ERROR]   保存失败 [site_xwzx_chyw_content_192533_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,941 [ERROR]   保存失败 [site_xwzx_chyw_content_192532_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,943 [ERROR]   保存失败 [site_xwzx_chyw_content_192396_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,944 [ERROR]   保存失败 [site_xwzx_chyw_content_192346_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,946 [ERROR]   保存失败 [site_xwzx_chyw_content_192342_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,947 [ERROR]   保存失败 [site_xwzx_chyw_content_192341_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,948 [ERROR]   保存失败 [site_xwzx_chyw_content_192302_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,949 [ERROR]   保存失败 [site_xwzx_chyw_content_192284_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,951 [ERROR]   保存失败 [site_xwzx_chyw_content_192231_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,953 [ERROR]   保存失败 [site_xwzx_chyw_content_192229_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,954 [ERROR]   保存失败 [site_xwzx_chyw_content_192169_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,956 [ERROR]   保存失败 [site_xwzx_chyw_content_192165_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,957 [ERROR]   保存失败 [site_xwzx_chyw_content_192163_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,959 [ERROR]   保存失败 [site_xwzx_chyw_content_192108_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,960 [ERROR]   保存失败 [site_xwzx_chyw_content_192107_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:09:45,966 [INFO]   入库: 0 条 (共解析 20 条)
+2026-06-16 13:09:46,076 [INFO] --- 开始扫描: 南昌航空大学-通知公告 (https://www.nchu.edu.cn/xwzx/chyw) ---
+2026-06-16 13:09:46,076 [INFO]   列表页 [1/1]: https://www.nchu.edu.cn/xwzx/chyw?page=1
+2026-06-16 13:09:46,266 [INFO]     发现 20 条新闻链接
+2026-06-16 13:10:18,967 [INFO] 127.0.0.1 - - [16/Jun/2026 13:10:18] "POST /api/auth/login HTTP/1.1" 200 -
+2026-06-16 13:10:19,197 [INFO] 127.0.0.1 - - [16/Jun/2026 13:10:19] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:10:19,210 [INFO] 127.0.0.1 - - [16/Jun/2026 13:10:19] "GET /api/stats HTTP/1.1" 200 -
+2026-06-16 13:10:19,322 [INFO] 127.0.0.1 - - [16/Jun/2026 13:10:19] "GET /api/admin/collection-status HTTP/1.1" 200 -
+2026-06-16 13:10:19,414 [INFO] 127.0.0.1 - - [16/Jun/2026 13:10:19] "GET /api/user/recommended HTTP/1.1" 200 -
+2026-06-16 13:10:30,166 [ERROR]   保存失败 [site_xwzx_chyw_content_192632_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,169 [ERROR]   保存失败 [site_xwzx_chyw_content_192631_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,171 [ERROR]   保存失败 [site_xwzx_chyw_content_192568_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,173 [ERROR]   保存失败 [site_xwzx_chyw_content_192535_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,174 [ERROR]   保存失败 [site_xwzx_chyw_content_192540_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,175 [ERROR]   保存失败 [site_xwzx_chyw_content_192533_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,177 [ERROR]   保存失败 [site_xwzx_chyw_content_192532_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,178 [ERROR]   保存失败 [site_xwzx_chyw_content_192396_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,179 [ERROR]   保存失败 [site_xwzx_chyw_content_192346_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,181 [ERROR]   保存失败 [site_xwzx_chyw_content_192342_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,182 [ERROR]   保存失败 [site_xwzx_chyw_content_192341_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,183 [ERROR]   保存失败 [site_xwzx_chyw_content_192302_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,184 [ERROR]   保存失败 [site_xwzx_chyw_content_192284_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,186 [ERROR]   保存失败 [site_xwzx_chyw_content_192231_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,187 [ERROR]   保存失败 [site_xwzx_chyw_content_192229_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,188 [ERROR]   保存失败 [site_xwzx_chyw_content_192169_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,189 [ERROR]   保存失败 [site_xwzx_chyw_content_192165_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,190 [ERROR]   保存失败 [site_xwzx_chyw_content_192163_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,191 [ERROR]   保存失败 [site_xwzx_chyw_content_192108_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,191 [ERROR]   保存失败 [site_xwzx_chyw_content_192107_www.nchu.edu.cn]: (1406, "Data too long for column 'news_id' at row 1")
+2026-06-16 13:10:30,197 [INFO]   入库: 0 条 (共解析 20 条)
+2026-06-16 13:10:30,284 [INFO] --- 开始扫描: 南昌航空大学-学术动态 (https://www.nchu.edu.cn/xwzx/chyw) ---
+2026-06-16 13:10:30,284 [INFO]   列表页 [1/1]: https://www.nchu.edu.cn/xwzx/chyw?page=1
+2026-06-16 13:10:30,474 [INFO]     发现 20 条新闻链接
+2026-06-16 13:10:35,898 [INFO]  * Detected change in 'C:\\Users\\Logic\\Desktop\\测试\\site_scanner.py', reloading
+2026-06-16 13:12:21,725 [INFO] 127.0.0.1 - - [16/Jun/2026 13:12:21] "POST /api/admin/scan-all HTTP/1.1" 200 -
+2026-06-16 13:12:21,726 [INFO] --- 开始扫描: 南昌航空大学-南航要闻 (https://www.nchu.edu.cn/xwzx/chyw) ---
+2026-06-16 13:12:21,727 [INFO]   列表页 [1/1]: https://www.nchu.edu.cn/xwzx/chyw?page=1
+2026-06-16 13:12:22,049 [INFO]     发现 20 条新闻链接
+2026-06-16 13:13:07,524 [INFO]   入库: 20 条 (共解析 20 条)
+2026-06-16 13:13:07,602 [INFO] --- 开始扫描: 南昌航空大学-通知公告 (https://www.nchu.edu.cn/xwzx/tzgg) ---
+2026-06-16 13:13:07,602 [INFO]   列表页 [1/1]: https://www.nchu.edu.cn/xwzx/tzgg?page=1
+2026-06-16 13:13:07,735 [WARNING]     请求失败 [404]
+2026-06-16 13:13:07,735 [INFO]   入库: 0 条 (共解析 0 条)
+2026-06-16 13:13:07,821 [INFO] --- 开始扫描: 南昌航空大学-学术动态 (https://www.nchu.edu.cn/xwzx/xsdt) ---
+2026-06-16 13:13:07,821 [INFO]   列表页 [1/1]: https://www.nchu.edu.cn/xwzx/xsdt?page=1
+2026-06-16 13:13:07,978 [INFO]     发现 20 条新闻链接
+2026-06-16 13:13:19,295 [INFO] 127.0.0.1 - - [16/Jun/2026 13:13:19] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:13:51,332 [INFO]   入库: 20 条 (共解析 20 条)
+2026-06-16 13:13:51,397 [INFO] --- 开始扫描: 南昌航空大学-媒体南航 (https://www.nchu.edu.cn/xwzx/mtnh) ---
+2026-06-16 13:13:51,398 [INFO]   列表页 [1/1]: https://www.nchu.edu.cn/xwzx/mtnh?page=1
+2026-06-16 13:13:51,519 [WARNING]     请求失败 [404]
+2026-06-16 13:13:51,520 [INFO]   入库: 0 条 (共解析 0 条)
+2026-06-16 13:13:51,586 [INFO] --- 开始扫描: 南昌航空大学-校园文化 (https://www.nchu.edu.cn/xwzx/xywh) ---
+2026-06-16 13:13:51,587 [INFO]   列表页 [1/1]: https://www.nchu.edu.cn/xwzx/xywh?page=1
+2026-06-16 13:13:51,744 [WARNING]     请求失败 [404]
+2026-06-16 13:13:51,745 [INFO]   入库: 0 条 (共解析 0 条)
+2026-06-16 13:13:51,879 [INFO] ======= 全站扫描完成: 40 条新闻, 0 个站点失败, 耗时 90s =======
+2026-06-16 13:14:19,304 [INFO] 127.0.0.1 - - [16/Jun/2026 13:14:19] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:15:19,305 [INFO] 127.0.0.1 - - [16/Jun/2026 13:15:19] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:16:19,294 [INFO] 127.0.0.1 - - [16/Jun/2026 13:16:19] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:17:53,307 [INFO] 127.0.0.1 - - [16/Jun/2026 13:17:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:18:53,311 [INFO] 127.0.0.1 - - [16/Jun/2026 13:18:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:19:53,301 [INFO] 127.0.0.1 - - [16/Jun/2026 13:19:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:20:53,297 [INFO] 127.0.0.1 - - [16/Jun/2026 13:20:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:21:53,296 [INFO] 127.0.0.1 - - [16/Jun/2026 13:21:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:22:53,296 [INFO] 127.0.0.1 - - [16/Jun/2026 13:22:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:23:53,290 [INFO] 127.0.0.1 - - [16/Jun/2026 13:23:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:24:53,288 [INFO] 127.0.0.1 - - [16/Jun/2026 13:24:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:25:53,290 [INFO] 127.0.0.1 - - [16/Jun/2026 13:25:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:26:53,289 [INFO] 127.0.0.1 - - [16/Jun/2026 13:26:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:27:53,287 [INFO] 127.0.0.1 - - [16/Jun/2026 13:27:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:28:53,292 [INFO] 127.0.0.1 - - [16/Jun/2026 13:28:53] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:29:30,232 [INFO] 127.0.0.1 - - [16/Jun/2026 13:29:30] "GET /api/user/notifications?limit=5 HTTP/1.1" 200 -
+2026-06-16 13:29:36,628 [INFO] 127.0.0.1 - - [16/Jun/2026 13:29:36] "GET /api/admin/stats HTTP/1.1" 200 -
+2026-06-16 13:29:36,693 [INFO] 127.0.0.1 - - [16/Jun/2026 13:29:36] "GET /api/admin/sites HTTP/1.1" 200 -
+2026-06-16 13:29:36,750 [INFO] 127.0.0.1 - - [16/Jun/2026 13:29:36] "GET /api/admin/users HTTP/1.1" 200 -
+2026-06-16 13:29:36,801 [INFO] 127.0.0.1 - - [16/Jun/2026 13:29:36] "GET /api/admin/push-logs?limit=10 HTTP/1.1" 200 -
+2026-06-16 13:29:36,857 [INFO] 127.0.0.1 - - [16/Jun/2026 13:29:36] "GET /api/admin/scan-logs HTTP/1.1" 200 -

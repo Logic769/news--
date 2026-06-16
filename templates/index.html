@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>南昌航空大学 - 南航要闻智能推送系统</title>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#080c14;--surface:#0e1525;--card:#151f34;--card-hover:#1a2742;
+  --border:#1e2d48;--border-light:#263752;
+  --accent:#d4a853;--accent-dim:rgba(212,168,83,.12);--accent-glow:rgba(212,168,83,.06);
+  --text:#e4e0d8;--text-muted:#6b7a8e;--text-dim:#3d4e63;
+  --red:#e85454;--orange:#e8a735;--gold:#d4a853;
+  --blue:#5b8def;--purple:#9b7aed;--green:#3dd68c;--teal:#3dd6b8;--pink:#ed7b9b;
+  --sidebar-w:240px;--topbar-h:64px;
+  --font-display:'Microsoft YaHei','PingFang SC','Noto Serif SC',serif;
+  --font-body:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;
+  --font-mono:'Consolas','DM Mono',monospace;
+  --radius:10px;--radius-sm:6px;
+}
+html{font-size:15px}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;line-height:1.6}
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");opacity:.03;pointer-events:none;z-index:9999}
+a{color:var(--accent);text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input,select,textarea{font-family:inherit;outline:none;border:none}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ── LOGIN OVERLAY ── */
+#login-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 30% 40%,#0d1a30 0%,transparent 60%),radial-gradient(ellipse at 70% 70%,#1a0d08 0%,transparent 50%),var(--bg)}
+.login-card{width:400px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:44px 36px;position:relative;overflow:hidden}
+.login-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--accent),transparent)}
+.login-logo{font-family:var(--font-display);font-size:1.4rem;font-weight:700;color:var(--accent);margin-bottom:4px}
+.login-sub{font-size:.8rem;color:var(--text-muted);margin-bottom:32px;line-height:1.6}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:.72rem;color:var(--text-muted);margin-bottom:6px;font-weight:500;letter-spacing:.05em;text-transform:uppercase}
+.form-input{width:100%;padding:11px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:.9rem;transition:border-color .2s}
+.form-input:focus{border-color:var(--accent)}
+.form-input::placeholder{color:var(--text-dim)}
+.btn-primary{width:100%;padding:12px;background:var(--accent);color:var(--bg);font-weight:700;font-size:.9rem;border-radius:var(--radius-sm);margin-top:6px;transition:all .2s;letter-spacing:.04em}
+.btn-primary:hover{background:#e0b863;box-shadow:0 0 24px var(--accent-dim)}
+.login-role{display:flex;gap:8px;margin-top:14px}
+.role-btn{flex:1;padding:8px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);font-size:.78rem;text-align:center;transition:all .2s}
+.role-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.login-error{color:var(--red);font-size:.75rem;text-align:center;margin-top:12px;display:none}
+
+/* ── APP LAYOUT ── */
+#app{display:none;height:100vh}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100}
+.sidebar-logo{padding:22px 18px;border-bottom:1px solid var(--border)}
+.sidebar-logo h1{font-family:var(--font-display);font-size:1rem;color:var(--accent);font-weight:700;line-height:1.3}
+.sidebar-logo p{font-size:.68rem;color:var(--text-dim);margin-top:3px;font-family:var(--font-mono)}
+.sidebar-nav{flex:1;padding:12px 10px;overflow-y:auto}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius-sm);color:var(--text-muted);font-size:.85rem;cursor:pointer;transition:all .2s;margin-bottom:2px}
+.nav-item:hover{color:var(--text);background:var(--card)}
+.nav-item.active{color:var(--accent);background:var(--accent-dim)}
+.nav-item .dot{width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.6;flex-shrink:0}
+.nav-item.active .dot{opacity:1;box-shadow:0 0 8px var(--accent)}
+.sidebar-footer{padding:12px 10px;border-top:1px solid var(--border)}
+.sidebar-user{display:flex;align-items:center;gap:10px;padding:8px 14px;margin-bottom:6px}
+.user-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent-dim);border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:.75rem;color:var(--accent);font-weight:700}
+.user-info .name{font-size:.82rem;font-weight:500}.user-info .role{font-size:.68rem;color:var(--text-muted)}
+.btn-logout{display:flex;align-items:center;gap:8px;width:100%;padding:9px 14px;border-radius:var(--radius-sm);color:var(--text-muted);font-size:.78rem;background:transparent;transition:all .2s}
+.btn-logout:hover{color:var(--red);background:rgba(232,84,84,.08)}
+
+.main-area{margin-left:var(--sidebar-w);min-height:100vh;display:flex;flex-direction:column}
+
+/* ── TOPBAR ── */
+.topbar{height:var(--topbar-h);padding:0 28px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:50}
+.topbar-title{font-family:var(--font-display);font-size:1.05rem;font-weight:600}
+.topbar-actions{display:flex;align-items:center;gap:14px}
+.topbar-time{font-size:.72rem;color:var(--text-dim);font-family:var(--font-mono)}
+.topbar-search{display:flex;align-items:center;gap:8px;padding:7px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:border-color .2s;color:var(--text-muted);font-size:.78rem}
+.topbar-search:hover{border-color:var(--border-light)}
+.notif-btn{position:relative;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--card);border-radius:var(--radius-sm);color:var(--text-muted);transition:all .2s;font-size:1rem}
+.notif-btn:hover{color:var(--text);background:var(--card-hover)}
+.notif-badge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:8px;background:var(--red);font-size:.6rem;color:#fff;display:none;align-items:center;justify-content:center;padding:0 4px;line-height:16px}
+.notif-badge.show{display:flex}
+.notif-dropdown{position:absolute;top:calc(100% + 8px);right:0;width:360px;max-height:420px;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 20px 60px rgba(0,0,0,.5);display:none;z-index:200}
+.notif-dropdown.show{display:block}
+.notif-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.notif-header h3{font-size:.85rem;font-weight:600}
+.notif-header span{font-size:.72rem;color:var(--accent);cursor:pointer}
+.notif-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.notif-item:hover{background:var(--card)}
+.notif-item.unread{border-left:3px solid var(--accent)}
+.notif-item h4{font-size:.78rem;font-weight:500;margin-bottom:3px;line-height:1.4}
+.notif-item .time{font-size:.68rem;color:var(--text-muted);font-family:var(--font-mono)}
+
+/* ── PAGE ── */
+.page{flex:1;padding:24px 28px;display:none;overflow-y:auto}
+.page.active{display:block;animation:fadeIn .35s ease}
+
+/* ── WELCOME BANNER ── */
+.welcome-banner{background:linear-gradient(135deg,var(--card) 0%,var(--accent-dim) 100%);border:1px solid var(--border);border-radius:var(--radius);padding:24px 26px;margin-bottom:22px;position:relative;overflow:hidden}
+.welcome-banner h2{font-family:var(--font-display);font-size:1.25rem;font-weight:700;margin-bottom:4px}
+.welcome-banner p{font-size:.82rem;color:var(--text-muted)}
+.welcome-date{font-family:var(--font-mono);font-size:.75rem;color:var(--text-dim);margin-top:8px}
+
+/* ── STATS ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;position:relative;overflow:hidden}
+.stat-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-card:nth-child(1)::after{background:var(--blue)}.stat-card:nth-child(2)::after{background:var(--accent)}
+.stat-card:nth-child(3)::after{background:var(--green)}.stat-card:nth-child(4)::after{background:var(--orange)}
+.stat-label{font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.stat-value{font-family:var(--font-display);font-size:1.7rem;font-weight:700;line-height:1}
+.stat-sub{font-size:.68rem;color:var(--text-dim);margin-top:4px}
+
+/* ── DASH GRID ── */
+.dash-grid{display:grid;grid-template-columns:1fr 340px;gap:20px;margin-bottom:22px}
+
+/* ── SECTION ── */
+.section-title{font-size:.9rem;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.section-title .spark{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+
+/* ── FILTER TABS ── */
+.filter-tabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.filter-tab{padding:6px 14px;border-radius:20px;font-size:.78rem;font-weight:500;background:var(--card);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;transition:all .2s}
+.filter-tab:hover{border-color:var(--border-light);color:var(--text)}
+.filter-tab.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+
+/* ── NEWS CARD ── */
+.news-card{display:flex;gap:14px;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;transition:all .25s}
+.news-card:hover{border-color:var(--border-light);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.news-card .cat-line{width:3px;border-radius:2px;flex-shrink:0}
+.news-body{flex:1;min-width:0}
+.news-body h3{font-size:.85rem;font-weight:600;margin-bottom:5px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.news-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.news-meta .cat-tag{padding:2px 8px;border-radius:3px;font-size:.66rem;font-weight:500}
+.news-meta .info{font-size:.7rem;color:var(--text-dim)}
+.news-summary{font-size:.75rem;color:var(--text-muted);line-height:1.55;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.news-views{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:44px;padding:6px;background:var(--accent-dim);border-radius:var(--radius-sm)}
+.news-views .num{font-family:var(--font-mono);font-size:.9rem;font-weight:700;color:var(--accent)}
+.news-views .label{font-size:.58rem;color:var(--text-muted)}
+.relevance-badge{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:48px;padding:6px;background:var(--accent-dim);border-radius:var(--radius-sm)}
+.relevance-badge .score{font-family:var(--font-mono);font-size:.95rem;font-weight:700;color:var(--accent)}
+.relevance-badge .label{font-size:.58rem;color:var(--text-muted);margin-top:1px}
+
+/* ── CATEGORY COLORS ── */
+.cat-line.党建思政{background:var(--red)}.cat-tag.党建思政{background:rgba(232,84,84,.12);color:var(--red)}
+.cat-line.人物风采{background:var(--orange)}.cat-tag.人物风采{background:rgba(232,167,53,.12);color:var(--orange)}
+.cat-line.荣誉获奖{background:var(--gold)}.cat-tag.荣誉获奖{background:rgba(212,168,83,.12);color:var(--gold)}
+.cat-line.教育教学{background:var(--blue)}.cat-tag.教育教学{background:rgba(91,141,239,.12);color:var(--blue)}
+.cat-line.学术科研{background:var(--purple)}.cat-tag.学术科研{background:rgba(155,122,237,.12);color:var(--purple)}
+.cat-line.交流合作{background:var(--teal)}.cat-tag.交流合作{background:rgba(61,214,184,.12);color:var(--teal)}
+.cat-line.校园活动{background:var(--green)}.cat-tag.校园活动{background:rgba(61,214,140,.12);color:var(--green)}
+.cat-line.会议要闻{background:#8896a8}.cat-tag.会议要闻{background:rgba(136,150,168,.12);color:#8896a8}
+.cat-line.综合新闻{background:var(--text-muted)}.cat-tag.综合新闻{background:rgba(107,122,142,.12);color:var(--text-muted)}
+
+/* ── CAT BARS ── */
+.cat-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.cat-bar-row .name{font-size:.75rem;width:64px;color:var(--text-muted);text-align:right}
+.cat-bar-bg{flex:1;height:7px;background:var(--surface);border-radius:4px;overflow:hidden}
+.cat-bar-fill{height:100%;border-radius:4px;transition:width .8s ease}
+.cat-bar-row .count{font-family:var(--font-mono);font-size:.75rem;width:32px;text-align:right;color:var(--text-muted)}
+
+/* ── STATUS ITEMS ── */
+.status-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.status-item:last-child{border-bottom:none}
+.status-label{font-size:.78rem;color:var(--text-muted)}
+.status-val{font-family:var(--font-mono);font-size:.8rem;font-weight:500}
+.status-val.running{color:var(--green)}.status-val.warning{color:var(--orange)}
+.status-dot-sm{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px}
+
+/* ── QUICK ACTIONS ── */
+.quick-actions{display:flex;gap:12px;margin-bottom:20px}
+.qa-btn{flex:1;padding:14px 18px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:.82rem;text-align:center;transition:all .25s;font-weight:500}
+.qa-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+
+/* ── PAGINATION ── */
+.pagination{display:flex;justify-content:center;gap:6px;margin-top:20px;padding:12px 0}
+.page-btn{padding:7px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);font-size:.78rem;cursor:pointer;transition:all .2s}
+.page-btn:hover{border-color:var(--border-light);color:var(--text)}
+.page-btn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent)}
+.page-btn:disabled{opacity:.4;cursor:default}
+
+/* ── DETAIL ── */
+.detail-back{display:inline-flex;align-items:center;gap:6px;color:var(--text-muted);font-size:.8rem;margin-bottom:16px;cursor:pointer;transition:color .2s}
+.detail-back:hover{color:var(--accent)}
+.detail-header{margin-bottom:22px}
+.detail-header h1{font-family:var(--font-display);font-size:1.35rem;font-weight:700;line-height:1.5;margin-bottom:10px}
+.detail-meta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:18px}
+.detail-meta span{font-size:.78rem;color:var(--text-muted)}
+.detail-meta .sep{width:1px;height:14px;background:var(--border)}
+.detail-content{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:26px}
+.detail-content .text{font-size:.88rem;line-height:1.9;color:var(--text-muted);white-space:pre-wrap}
+.detail-source{font-size:.8rem;color:var(--text-muted);text-align:right;margin-top:24px;padding-top:14px;border-top:1px solid var(--border)}
+/* AI 总结卡片 */
+.ai-section{background:linear-gradient(135deg,rgba(212,168,83,.04) 0%,var(--card) 100%);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-top:20px}
+.ai-section h3{font-size:.9rem;font-weight:600;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.ai-section .ai-badge{padding:2px 8px;border-radius:3px;background:var(--accent-dim);color:var(--accent);font-size:.65rem;font-weight:500}
+.ai-summary-text{font-size:.85rem;line-height:1.8;color:var(--text-muted);margin-bottom:16px}
+.ai-keypoints-list{list-style:none;padding:0}
+.ai-keypoints-list li{font-size:.8rem;line-height:1.7;color:var(--text-muted);padding:4px 0;padding-left:14px;position:relative}
+.ai-keypoints-list li::before{content:'•';position:absolute;left:0;color:var(--accent)}
+.ai-loading{text-align:center;padding:20px;color:var(--text-dim)}
+.btn-ai{padding:8px 16px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:var(--radius-sm);color:var(--accent);font-size:.75rem;cursor:pointer;transition:all .2s}
+.btn-ai:hover{background:var(--accent);color:var(--bg)}
+
+/* ── SEARCH ── */
+.search-box{display:flex;max-width:560px;margin:0 auto 16px}
+.search-input{flex:1;padding:11px 16px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm) 0 0 var(--radius-sm);color:var(--text);font-size:.88rem;transition:border-color .2s}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--text-dim)}
+.search-btn{padding:11px 22px;background:var(--accent);color:var(--bg);font-weight:700;font-size:.82rem;border-radius:0 var(--radius-sm) var(--radius-sm) 0;transition:background .2s}
+.search-btn:hover{background:#e0b863}
+
+/* ── PROFILE ── */
+.profile-header{display:flex;align-items:center;gap:20px;padding:24px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px}
+.profile-avatar{width:64px;height:64px;border-radius:50%;background:var(--accent-dim);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.3rem;color:var(--accent);font-weight:700}
+.profile-name{font-size:1.15rem;font-weight:700;margin-bottom:3px}
+.profile-dept{font-size:.8rem;color:var(--text-muted)}
+.profile-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.ps-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;text-align:center}
+.ps-card .val{font-family:var(--font-display);font-size:1.6rem;font-weight:700;color:var(--accent)}
+.ps-card .label{font-size:.72rem;color:var(--text-muted);margin-top:4px}
+.settings-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px}
+.settings-section h3{padding:14px 18px;border-bottom:1px solid var(--border);font-size:.88rem;font-weight:600}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border)}
+.setting-row:last-child{border-bottom:none}
+.setting-label{font-size:.82rem}.setting-desc{font-size:.7rem;color:var(--text-muted);margin-top:2px}
+.toggle{width:42px;height:22px;background:var(--border);border-radius:11px;position:relative;cursor:pointer;transition:background .25s}
+.toggle.on{background:var(--accent)}
+.toggle::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .25s}
+.toggle.on::after{transform:translateX(20px)}
+
+/* ── ADMIN ── */
+.admin-table{width:100%;border-collapse:collapse;font-size:.78rem}
+.admin-table thead tr{border-bottom:1px solid var(--border)}
+.admin-table th{padding:10px 14px;text-align:left;color:var(--text-muted);font-weight:500;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
+.admin-table td{padding:10px 14px;border-bottom:1px solid var(--border)}
+.admin-table th.center,.admin-table td.center{text-align:center}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+.status-dot.green{background:var(--green);animation:pulse 1.5s infinite}
+.status-dot.orange{background:var(--orange)}
+.status-dot.red{background:var(--text-dim)}
+.btn-sm{padding:5px 12px;border-radius:var(--radius-sm);font-size:.7rem;font-weight:500;transition:all .2s}
+.btn-sm.danger{background:rgba(232,84,84,.1);color:var(--red);border:1px solid rgba(232,84,84,.2)}
+.btn-sm.danger:hover{background:rgba(232,84,84,.2)}
+.btn-sm.play{background:rgba(61,214,140,.1);color:var(--green);border:1px solid rgba(61,214,140,.2)}
+.btn-sm.play:hover{background:rgba(61,214,140,.2)}
+.btn-accent{padding:10px 20px;background:var(--accent);color:var(--bg);font-weight:700;font-size:.82rem;border-radius:var(--radius-sm);transition:all .2s}
+.btn-accent:hover{background:#e0b863;box-shadow:0 0 20px var(--accent-dim)}
+.btn-outline{padding:10px 20px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);font-size:.82rem;transition:all .2s}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.push-result{padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:14px;display:none;font-size:.82rem;line-height:1.7}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:500;display:none;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:460px;max-height:80vh;overflow-y:auto;padding:28px;position:relative}
+.modal h2{font-family:var(--font-display);font-size:1.1rem;font-weight:700;margin-bottom:18px}
+.modal-close{position:absolute;top:12px;right:12px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:var(--card);border-radius:50%;color:var(--text-muted);font-size:1rem;cursor:pointer}
+.modal-close:hover{color:var(--text)}
+select.form-input{appearance:none;cursor:pointer}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.loader{text-align:center;padding:40px;color:var(--text-muted)}
+.loader::before{content:'';display:inline-block;width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-right:10px;vertical-align:middle}
+.empty-state{text-align:center;padding:50px 20px;color:var(--text-dim)}
+.empty-state .icon{font-size:2.5rem;margin-bottom:10px;opacity:.4}
+.empty-state p{font-size:.82rem}
+
+@media(max-width:1100px){.dash-grid{grid-template-columns:1fr}.stats-row{grid-template-columns:repeat(2,1fr)}.profile-stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ═══ -->
+<div id="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">南航要闻智能推送系统</div>
+    <div class="login-sub">基于AI的新闻采集、分类与个性化推送平台<br>为科研管理决策提供及时、准确、全面的信息支撑</div>
+    <div class="form-group"><label>账号</label><input class="form-input" type="text" placeholder="请输入用户名" id="loginUser" value="admin"></div>
+    <div class="form-group"><label>密码</label><input class="form-input" type="password" placeholder="请输入密码" id="loginPass" value="admin123"></div>
+    <button class="btn-primary" onclick="doLogin()">登 录</button>
+    <div class="login-role">
+      <button class="role-btn active" onclick="selectRole(this,'admin')">管理员</button>
+      <button class="role-btn" onclick="selectRole(this,'user')">普通用户</button>
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <div style="margin-top:16px;font-size:.72rem;color:var(--text-dim);text-align:center">管理员: admin / admin123 &nbsp;|&nbsp; 用户: user01 / user123</div>
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="app">
+  <aside class="sidebar">
+    <div class="sidebar-logo"><h1>南航要闻<br>智能推送系统</h1><p>AI-POWERED v2.0</p></div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-page="home" onclick="navigate('home')"><span class="dot"></span>首页总览</div>
+      <div class="nav-item" data-page="category" onclick="navigate('category')"><span class="dot"></span>分类浏览</div>
+      <div class="nav-item" data-page="search" onclick="navigate('search')"><span class="dot"></span>新闻检索</div>
+      <div class="nav-item" data-page="profile" onclick="navigate('profile')"><span class="dot"></span>个人中心</div>
+      <div class="nav-item" data-page="admin" onclick="navigate('admin')" id="nav-admin"><span class="dot"></span>系统管理</div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user"><div class="user-avatar" id="userAvatarText">方</div><div class="user-info"><div class="name" id="sidebarName">方裕骁</div><div class="role" id="sidebarRole">管理员</div></div></div>
+      <button class="btn-logout" onclick="doLogout()">退出登录</button>
+    </div>
+  </aside>
+
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-title" id="pageTitle">首页总览</div>
+      <div class="topbar-actions">
+        <div class="topbar-search" onclick="navigate('search')">🔍 搜索新闻...</div>
+        <div class="topbar-time" id="topbarTime"></div>
+        <div style="position:relative">
+          <button class="notif-btn" onclick="toggleNotif(event)">🔔</button>
+          <span class="notif-badge" id="notifBadge"></span>
+          <div class="notif-dropdown" id="notifDropdown">
+            <div class="notif-header"><h3>智能推送</h3><span onclick="markAllRead()">全部已读</span></div>
+            <div id="notifList"></div>
+            <div style="text-align:center;padding:12px;display:none" id="notifEmpty"><span style="font-size:.75rem;color:var(--text-dim)">暂无通知</span></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ═══ HOME ═══ -->
+    <div class="page active" id="page-home">
+      <div class="welcome-banner">
+        <h2>欢迎回来，<span id="welcomeName">方裕骁</span></h2>
+        <p>智能助手已为您持续监测南航新闻动态，以下是最新数据概览</p>
+        <div class="welcome-date" id="welcomeDate"></div>
+      </div>
+      <div class="stats-row" id="statsRow"></div>
+      <div class="dash-grid">
+        <div>
+          <div class="section-title"><span class="spark"></span>最新高匹配度新闻</div>
+          <div id="homeNewsList">加载中...</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:18px">
+          <div class="panel">
+            <div class="section-title"><span class="spark" style="background:var(--green)"></span>采集运行状态</div>
+            <div id="statusPanel"></div>
+          </div>
+          <div class="panel">
+            <div class="section-title">分类统计</div>
+            <div id="catChart"></div>
+          </div>
+        </div>
+      </div>
+      <div class="section-title">快速操作</div>
+      <div class="quick-actions">
+        <button class="qa-btn" onclick="navigate('category')">查看全部新闻</button>
+        <button class="qa-btn" onclick="navigate('search')">高级信息检索</button>
+        <button class="qa-btn" onclick="navigate('profile')">偏好设置管理</button>
+      </div>
+    </div>
+
+    <!-- ═══ CATEGORY ═══ -->
+    <div class="page" id="page-category">
+      <div class="filter-tabs" id="filterTabs"></div>
+      <div id="catNewsList">加载中...</div>
+      <div class="pagination" id="catPagination"></div>
+    </div>
+
+    <!-- ═══ SEARCH ═══ -->
+    <div class="page" id="page-search">
+      <div style="padding:30px 0 20px;text-align:center">
+        <h2 style="font-family:var(--font-display);font-size:1.4rem;margin-bottom:4px">智能检索</h2>
+        <p style="color:var(--text-muted);font-size:.82rem;margin-bottom:20px">输入关键词搜索南航要闻</p>
+        <div class="search-box"><input class="search-input" type="text" placeholder="输入关键词..." id="searchInput" onkeyup="if(event.key==='Enter')doSearch()"><button class="search-btn" onclick="doSearch()">检 索</button></div>
+        <div class="filter-tabs" style="justify-content:center;margin-bottom:0" id="searchFilterTabs"></div>
+      </div>
+      <div id="searchResultLabel" style="font-size:.8rem;color:var(--text-muted);margin-bottom:12px;display:none"></div>
+      <div id="searchResultList"></div>
+      <div class="pagination" id="searchPagination" style="display:none"></div>
+    </div>
+
+    <!-- ═══ DETAIL ═══ -->
+    <div class="page" id="page-detail">
+      <div class="detail-back" onclick="navigateBack()">← 返回列表</div>
+      <div id="detailContent">加载中...</div>
+    </div>
+
+    <!-- ═══ PROFILE ═══ -->
+    <div class="page" id="page-profile">
+      <div class="profile-header">
+        <div class="profile-avatar" id="profileAvatar">方</div>
+        <div><div class="profile-name" id="profileName">方裕骁</div><div class="profile-dept" id="profileDept">科信管理部</div></div>
+      </div>
+      <div class="profile-stats" id="profileStats"></div>
+      <div class="settings-section">
+        <h3>推送通知设置</h3>
+        <div class="setting-row"><div><div class="setting-label">个性化推送</div><div class="setting-desc">根据偏好自动推送相关新闻</div></div><div class="toggle on" id="togglePush" onclick="togglePref('push_enabled')"></div></div>
+        <div class="setting-row"><div><div class="setting-label">每日摘要</div><div class="setting-desc">每日上午9:00推送摘要</div></div><div class="toggle on" id="toggleDigest" onclick="togglePref('daily_digest')"></div></div>
+        <div class="setting-row"><div><div class="setting-label">截止日期提醒</div><div class="setting-desc">相关截止日期前提醒</div></div><div class="toggle on" id="toggleDeadline" onclick="togglePref('deadline_reminder')"></div></div>
+      </div>
+      <div class="settings-section">
+        <h3>偏好设置</h3>
+        <div class="setting-row"><div><div class="setting-label">关注分类</div><div class="setting-desc" id="prefCats">全部</div></div><span style="color:var(--accent);font-size:.78rem;cursor:pointer" onclick="showPrefModal()">编辑</span></div>
+        <div class="setting-row"><div><div class="setting-label">关注关键词</div><div class="setting-desc" id="prefKws">无</div></div><span style="color:var(--accent);font-size:.78rem;cursor:pointer" onclick="showPrefModal()">编辑</span></div>
+      </div>
+    </div>
+
+    <!-- ═══ ADMIN ═══ -->
+    <div class="page" id="page-admin">
+      <div class="stats-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px" id="adminStatsRow"></div>
+      <div style="display:flex;gap:12px;margin-bottom:18px">
+        <button class="btn-accent" onclick="triggerPush()">触发智能推送</button>
+        <button class="btn-accent" style="background:var(--purple)" onclick="batchSummarize()">批量AI总结</button>
+        <button class="btn-outline" onclick="refetchAllContent()">补全正文摘要</button>
+        <button class="btn-outline" onclick="showAddSiteModal()">+ 添加站点</button>
+        <button class="btn-outline" onclick="showCreateUserModal()">+ 添加用户</button>
+      </div>
+      <div class="push-result" id="pushResult"></div>
+      <div id="batchResult" style="padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:0;margin-bottom:14px;display:none;font-size:.82rem;line-height:1.7"></div>
+
+      <div class="section-title" style="margin-top:20px">监测站点管理
+        <span style="float:right;font-weight:400">
+          <button class="btn-primary" style="padding:4px 14px;font-size:.82rem;margin-right:6px" onclick="startFullScan()">全站扫描</button>
+          <button class="btn-primary" style="padding:4px 14px;font-size:.82rem" onclick="showAddSiteModal()">+ 添加站点</button>
+        </span>
+      </div>
+      <div id="scanMsg" style="padding:8px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:12px;display:none;font-size:.82rem"></div>
+      <div style="overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px">
+        <table class="admin-table"><thead><tr><th>站点名称</th><th>网址</th><th class="center">分类页/详情页</th><th class="center">采集频率</th><th class="center">状态</th><th class="center">最后采集</th><th class="center">操作</th></tr></thead><tbody id="adminSiteTable"></tbody></table>
+      </div>
+
+      <div class="section-title">采集日志</div>
+      <div style="overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px" id="scanLogsContainer">
+        <p style="color:var(--muted);padding:14px;margin:0">加载中...</p>
+      </div>
+
+      <div class="section-title">用户账号管理</div>
+      <div style="overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px">
+        <table class="admin-table"><thead><tr><th>用户名</th><th>显示名称</th><th>部门</th><th>角色</th><th>偏好分类</th><th>状态</th><th>操作</th></tr></thead><tbody id="adminUserTable"></tbody></table>
+      </div>
+
+      <div class="section-title">推送日志</div>
+      <div style="overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius)">
+        <table class="admin-table"><thead><tr><th>时间</th><th>类型</th><th>目标用户</th><th>成功推送</th><th>匹配新闻</th></tr></thead><tbody id="pushLogTable"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PREF MODAL ═══ -->
+<div class="modal-overlay" id="prefModal">
+  <div class="modal">
+    <div class="modal-close" onclick="closePrefModal()">×</div>
+    <h2>编辑偏好设置</h2>
+    <div class="form-group"><label>关注分类（逗号分隔）</label><input class="form-input" type="text" id="inputPrefCats" placeholder="如: 党建思政,学术科研,荣誉获奖"></div>
+    <div class="form-group"><label>关注关键词（逗号分隔）</label><input class="form-input" type="text" id="inputPrefKws" placeholder="如: 新能源,碳中和,创新"></div>
+    <button class="btn-primary" onclick="savePreferences()">保存偏好</button>
+  </div>
+</div>
+
+<!-- ═══ CREATE USER MODAL ═══ -->
+<div class="modal-overlay" id="createUserModal">
+  <div class="modal">
+    <div class="modal-close" onclick="closeCreateUserModal()">×</div>
+    <h2>添加用户</h2>
+    <div class="form-group"><label>用户名</label><input class="form-input" type="text" id="newUsername" placeholder="登录用户名"></div>
+    <div class="form-group"><label>密码</label><input class="form-input" type="password" id="newPassword" placeholder="登录密码"></div>
+    <div class="form-group"><label>显示名称</label><input class="form-input" type="text" id="newDisplayName" placeholder="显示名称"></div>
+    <div class="form-group"><label>部门</label><input class="form-input" type="text" id="newDepartment" placeholder="所属部门"></div>
+    <button class="btn-primary" onclick="createUser()">创建用户</button>
+  </div>
+</div>
+
+<!-- ═══ ADD/EDIT SITE MODAL ═══ -->
+<div class="modal-overlay" id="addSiteModal">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-close" onclick="closeAddSiteModal()">×</div>
+    <h2 id="siteModalTitle">添加监测站点</h2>
+    <input type="hidden" id="editSiteId" value="">
+    <div class="form-group"><label>站点名称</label><input class="form-input" type="text" id="newSiteName" placeholder="如: 南昌航空大学-新闻中心"></div>
+    <div class="form-group"><label>站点域名</label><input class="form-input" type="text" id="newSiteUrl" placeholder="如: nchu.edu.cn"></div>
+    <div class="form-group"><label>采集频率</label><select class="form-input" id="newSiteFreq"><option>每日1次</option><option>每日2次</option><option>每6小时</option><option>每12小时</option></select></div>
+    <div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:14px"><strong>爬虫配置 (JSON)</strong>
+      <textarea class="form-input" id="newSiteConfig" style="min-height:200px;font-family:Consolas,monospace;font-size:0.78rem;white-space:pre" placeholder='{"list_url":"https://xxx.edu.cn/news/list","list_pagination":"/page/{page}","list_item_selector":"a.news-link","detail_content_selector":"div.article-body","news_id_pattern":"(\\d+)","base_url":"https://xxx.edu.cn","encoding":"utf-8"}'></textarea>
+      <div style="font-size:0.72rem;color:var(--muted);line-height:1.6;margin-top:6px">
+        <strong>字段说明：</strong><br>
+        <code>list_url</code> — 列表页 URL (必填)<br>
+        <code>list_pagination</code> — 分页模板，{page} 为页码<br>
+        <code>list_item_selector</code> — 新闻链接 CSS 选择器<br>
+        <code>detail_content_selector</code> — 正文区域 CSS 选择器<br>
+        <code>base_url</code> — 拼接相对路径的基础URL
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" onclick="saveNewSite()" style="flex:1">保存站点</button>
+      <button class="btn-outline" onclick="validateSiteConfig()" style="flex:0">验证 JSON</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== STATE ====================
+let currentUser = null;
+let currentPage = 'home'; let prevPage = 'home';
+let currentCategory = '全部'; let currentSearchCategory = '全部';
+let catPage = 1, searchPage = 1;
+let currentPrefs = {};
+const PER_PAGE = 15;
+const CAT_COLORS = {'党建思政':'var(--red)','人物风采':'var(--orange)','荣誉获奖':'var(--gold)','教育教学':'var(--blue)','学术科研':'var(--purple)','交流合作':'var(--teal)','校园活动':'var(--green)','会议要闻':'#8896a8','综合新闻':'var(--text-muted)'};
+
+// ==================== AUTH ====================
+let loginRole = 'admin';
+function selectRole(el, role) {
+  loginRole = role;
+  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('loginUser').value = role==='admin'?'admin':'user01';
+  document.getElementById('loginPass').value = role==='admin'?'admin123':'user123';
+}
+
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if(!username||!password){showLoginError('请输入用户名和密码');return;}
+  try{
+    const res=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+    const json=await res.json();
+    if(json.code!==0){showLoginError(json.msg);return;}
+    currentUser=json.data;
+    document.getElementById('login-overlay').style.display='none';
+    document.getElementById('app').style.display='flex';
+    document.getElementById('nav-admin').style.display=currentUser.role==='admin'?'flex':'none';
+    document.getElementById('userAvatarText').textContent=currentUser.display_name[0];
+    document.getElementById('sidebarName').textContent=currentUser.display_name;
+    document.getElementById('sidebarRole').textContent=currentUser.role==='admin'?'管理员':'普通用户';
+    document.getElementById('loginError').style.display='none';
+    document.getElementById('welcomeName').textContent=currentUser.display_name;
+    updateTime();setInterval(updateTime,30000);
+    navigate('home');
+    pollNotifications();setInterval(pollNotifications,60000);
+  }catch(e){showLoginError('登录失败，请检查网络');}
+}
+function showLoginError(msg){const el=document.getElementById('loginError');el.textContent=msg;el.style.display='block';}
+
+async function doLogout(){
+  await fetch('/api/auth/logout',{method:'POST'});
+  currentUser=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-overlay').style.display='flex';
+}
+
+// ==================== API HELPER ====================
+async function api(url, opts={}){
+  try{
+    const res=await fetch(url,{credentials:'same-origin',...opts});
+    if(res.status===401){doLogout();return null;}
+    const json=await res.json();
+    if(json.code!==0&&json.code!==undefined)throw new Error(json.msg);
+    return json.data;
+  }catch(e){console.error(url,e);return null;}
+}
+
+// ==================== NAV ====================
+function navigate(page){
+  prevPage=currentPage;currentPage=page;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+  const titles={home:'首页总览',category:'分类浏览',search:'新闻检索',detail:'新闻详情',profile:'个人中心',admin:'系统管理'};
+  document.getElementById('pageTitle').textContent=titles[page]||'';
+  if(page==='home')loadHome();
+  else if(page==='category')loadCategory();
+  else if(page==='search')loadSearchPage();
+  else if(page==='profile')loadProfile();
+  else if(page==='admin')loadAdmin();
+}
+function navigateBack(){navigate(prevPage);}
+
+// ==================== HOME ====================
+async function loadHome(){
+  document.getElementById('welcomeDate').textContent=new Date().toLocaleString('zh-CN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const stats=await api('/api/stats');
+  if(stats){
+    const sites=stats.total_sites||0;
+    document.getElementById('statsRow').innerHTML=`
+      <div class="stat-card"><div class="stat-label">监测站点数</div><div class="stat-value" style="color:var(--blue)">${sites}</div><div class="stat-sub">正常运行中</div></div>
+      <div class="stat-card"><div class="stat-label">累计新闻数</div><div class="stat-value" style="color:var(--accent)">${stats.total}</div><div class="stat-sub">今日新增 ${stats.today}</div></div>
+      <div class="stat-card"><div class="stat-label">今日阅读量</div><div class="stat-value" style="color:var(--green)">${stats.today_reads||0}</div><div class="stat-sub">用户活跃度</div></div>
+      <div class="stat-card"><div class="stat-label">新闻分类数</div><div class="stat-value" style="color:var(--orange)">${stats.categories.length}</div><div class="stat-sub">智能分类</div></div>`;
+    renderCatChart(stats.categories);
+  }
+  const coll=await api('/api/admin/collection-status');
+  if(coll){
+    document.getElementById('statusPanel').innerHTML=`
+      <div class="status-item"><span class="status-label">运行状态</span><span class="status-val running"><span class="status-dot-sm" style="background:var(--green)"></span>运行中</span></div>
+      <div class="status-item"><span class="status-label">运行中站点</span><span class="status-val">${coll.running} / ${coll.total_sites}</span></div>
+      <div class="status-item"><span class="status-label">今日采集次数</span><span class="status-val">${coll.today_collects||0}</span></div>
+      <div class="status-item"><span class="status-label">今日新增新闻</span><span class="status-val" style="color:var(--green)">${coll.today_news||0}</span></div>
+      <div class="status-item"><span class="status-label">最后采集时间</span><span class="status-val">${coll.latest?coll.latest.created_at:'暂无'}</span></div>`;
+  }
+  const news=await api('/api/user/recommended');
+  renderNewsCards('homeNewsList',news||[],true);
+}
+
+function renderCatChart(categories){
+  const max=Math.max(...categories.map(c=>c.count),1);
+  document.getElementById('catChart').innerHTML=categories.map(c=>`
+    <div class="cat-bar-row"><span class="name">${c.category}</span><div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${(c.count/max*100).toFixed(0)}%;background:${CAT_COLORS[c.category]||'var(--text-muted)'}"></div></div><span class="count">${c.count}</span></div>
+  `).join('');
+}
+
+function renderNewsCards(elId, items, showRelevance){
+  const el=document.getElementById(elId);
+  if(!items||!items.length){el.innerHTML='<div class="empty-state"><div class="icon">📭</div><p>暂无新闻</p></div>';return;}
+  el.innerHTML=items.map(n=>`
+    <div class="news-card" onclick="openDetail('${n.news_id}')">
+      <div class="cat-line ${n.category}"></div><div class="news-body"><h3>${esc(n.title)}</h3>
+      <div class="news-meta"><span class="cat-tag ${n.category}">${n.category}</span>${n.source?`<span class="info">${esc(n.source)}</span>`:''}<span class="info">${n.publish_date||''}</span></div>
+      ${n.summary?`<div class="news-summary">${esc(n.summary)}</div>`:''}</div>
+      ${showRelevance?`<div class="relevance-badge"><div class="score">${n.relevance||n.views||0}%</div><div class="label">相关度</div></div>`:`<div class="news-views"><div class="num">${n.views||0}</div><div class="label">浏览</div></div>`}
+    </div>`).join('');
+}
+
+// ==================== CATEGORY ====================
+async function loadCategory(cat, page){
+  if(cat!==undefined)currentCategory=cat;
+  if(page!==undefined)catPage=page;else catPage=1;
+  const cats=await api('/api/categories');
+  if(cats){document.getElementById('filterTabs').innerHTML=['全部',...cats.map(c=>c.category)].map(c=>`<span class="filter-tab${c===currentCategory?' active':''}" onclick="loadCategory('${c}',1)">${c}</span>`).join('');}
+  let url=`/api/news?page=${catPage}&per_page=${PER_PAGE}`;
+  if(currentCategory!=='全部')url+=`&category=${encodeURIComponent(currentCategory)}`;
+  const data=await api(url);
+  if(data){renderNewsCards('catNewsList',data.items,false);renderPagination('catPagination',catPage,data.total_pages,p=>loadCategory(undefined,p));}
+}
+
+// ==================== SEARCH ====================
+async function loadSearchPage(){
+  const cats=await api('/api/categories');
+  if(cats){document.getElementById('searchFilterTabs').innerHTML=['全部',...cats.map(c=>c.category)].map(c=>`<span class="filter-tab${c===currentSearchCategory?' active':''}" onclick="setSearchCat('${c}')">${c}</span>`).join('');}
+}
+function setSearchCat(cat){currentSearchCategory=cat;loadSearchPage();}
+async function doSearch(){
+  const kw=document.getElementById('searchInput').value.trim();if(!kw)return;
+  searchPage=1;
+  let url=`/api/news?page=1&per_page=${PER_PAGE}&keyword=${encodeURIComponent(kw)}`;
+  if(currentSearchCategory!=='全部')url+=`&category=${encodeURIComponent(currentSearchCategory)}`;
+  const data=await api(url);
+  if(data){
+    document.getElementById('searchResultLabel').style.display='block';
+    document.getElementById('searchResultLabel').textContent=`找到 ${data.total} 条相关新闻`;
+    renderNewsCards('searchResultList',data.items,false);
+    if(data.total_pages>1)renderPagination('searchPagination',1,data.total_pages,async p=>{
+      let u=`/api/news?page=${p}&per_page=${PER_PAGE}&keyword=${encodeURIComponent(kw)}`;
+      if(currentSearchCategory!=='全部')u+=`&category=${encodeURIComponent(currentSearchCategory)}`;
+      const d=await api(u);if(d)renderNewsCards('searchResultList',d.items,false);
+    });
+  }
+}
+
+// ==================== DETAIL ====================
+async function openDetail(newsId){
+  navigate('detail');
+  document.getElementById('detailContent').innerHTML='<div class="loader">加载中...</div>';
+  const data=await api(`/api/news/${newsId}`);
+  if(!data){document.getElementById('detailContent').innerHTML='<div class="empty-state"><p>新闻不存在</p></div>';return;}
+  await api('/api/user/reading-history',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({news_id:newsId})});
+
+  // 构建 AI 总结区域
+  let aiHtml='';
+  if(data.ai_summary){
+    const kps=data.ai_keypoints?data.ai_keypoints.split('\n').filter(k=>k.trim()).map(k=>`<li>${esc(k)}</li>`).join(''):'';
+    aiHtml=`
+    <div class="ai-section">
+      <h3>🤖 AI 智能总结 <span class="ai-badge">${data.ai_summarized_at?'已总结':'新生成'}</span></h3>
+      <div class="ai-summary-text">${esc(data.ai_summary)}</div>
+      ${kps?`<h4 style="font-size:.78rem;color:var(--text);margin-bottom:8px">关键信息点</h4><ul class="ai-keypoints-list">${kps}</ul>`:''}
+    </div>`;
+  }else{
+    aiHtml=`
+    <div class="ai-section" id="aiSummarySection">
+      <h3>🤖 AI 智能总结 <span class="ai-badge">待生成</span></h3>
+      <div id="aiSummaryBody"><button class="btn-ai" onclick="generateAISummary('${newsId}')">生成智能总结</button></div>
+    </div>`;
+  }
+
+  document.getElementById('detailContent').innerHTML=`
+    <div class="detail-header"><h1>${esc(data.title)}</h1>
+      <div class="detail-meta"><span class="cat-tag ${data.category}">${data.category}</span><span class="sep"></span><span>发布: ${data.publish_date||'未知'}</span>${data.source?`<span class="sep"></span><span>来源: ${esc(data.source)}</span>`:''}<span class="sep"></span><span>浏览: ${data.views||0} 次</span></div></div>
+    <div class="detail-content"><div class="text">${esc(data.content||'暂无正文')}</div>
+      <div class="detail-source">原文链接: <a href="${data.url||'#'}" target="_blank" rel="noopener">${data.url||'无'}</a></div></div>
+    ${aiHtml}`;
+}
+
+async function generateAISummary(newsId){
+  const body=document.getElementById('aiSummaryBody');
+  if(!body)return;
+  body.innerHTML='<div class="ai-loading">⏳ AI 正在分析中，请稍候...</div>';
+  const data=await api(`/api/news/${newsId}/summarize`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({use_ai:true})});
+  if(data){
+    const kps=data.ai_keypoints?data.ai_keypoints.split('\n').filter(k=>k.trim()).map(k=>`<li>${esc(k)}</li>`).join(''):'';
+    body.innerHTML=`
+      <div class="ai-summary-text">${esc(data.ai_summary)}</div>
+      ${kps?`<h4 style="font-size:.78rem;color:var(--text);margin-bottom:8px">关键信息点</h4><ul class="ai-keypoints-list">${kps}</ul>`:''}
+    `;
+  }else{
+    body.innerHTML='<div style="color:var(--red);font-size:.82rem">总结失败，请重试</div>';
+  }
+}
+
+// ==================== PROFILE ====================
+async function loadProfile(){
+  const data=await api('/api/user/profile');
+  if(!data)return;
+  const u=data.user,s=data.stats;
+  document.getElementById('profileAvatar').textContent=u.avatar_text;
+  document.getElementById('profileName').textContent=u.display_name;
+  document.getElementById('profileDept').textContent=u.department||'未设置';
+  document.getElementById('profileStats').innerHTML=`
+    <div class="ps-card"><div class="val">${s.total_reads}</div><div class="label">累计阅读</div></div>
+    <div class="ps-card"><div class="val">${s.month_reads}</div><div class="label">本月阅读</div></div>
+    <div class="ps-card"><div class="val">${s.favorites}</div><div class="label">收藏新闻</div></div>`;
+  if(data.preferences){
+    currentPrefs=data.preferences;
+    document.getElementById('togglePush').classList.toggle('on',!!data.preferences.push_enabled);
+    document.getElementById('toggleDigest').classList.toggle('on',!!data.preferences.daily_digest);
+    document.getElementById('toggleDeadline').classList.toggle('on',!!data.preferences.deadline_reminder);
+    document.getElementById('prefCats').textContent=data.preferences.preferred_categories||'全部';
+    document.getElementById('prefKws').textContent=data.preferences.preferred_keywords||'无';
+  }
+}
+async function togglePref(field){
+  const el=document.getElementById(field==='push_enabled'?'togglePush':field==='daily_digest'?'toggleDigest':'toggleDeadline');
+  const newVal=!el.classList.contains('on');
+  currentPrefs[field]=newVal?1:0;
+  await api('/api/user/preferences',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(currentPrefs)});
+  loadProfile();
+}
+function showPrefModal(){
+  document.getElementById('inputPrefCats').value=currentPrefs.preferred_categories||'';
+  document.getElementById('inputPrefKws').value=currentPrefs.preferred_keywords||'';
+  document.getElementById('prefModal').classList.add('show');
+}
+function closePrefModal(){document.getElementById('prefModal').classList.remove('show');}
+async function savePreferences(){
+  currentPrefs.preferred_categories=document.getElementById('inputPrefCats').value.trim();
+  currentPrefs.preferred_keywords=document.getElementById('inputPrefKws').value.trim();
+  await api('/api/user/preferences',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(currentPrefs)});
+  closePrefModal();loadProfile();
+}
+
+// ==================== NOTIFICATIONS ====================
+async function pollNotifications(){
+  if(!currentUser)return;
+  const data=await api('/api/user/notifications?limit=5');
+  if(!data)return;
+  const badge=document.getElementById('notifBadge');
+  if(data.unread>0){badge.textContent=data.unread;badge.classList.add('show');}
+  else{badge.classList.remove('show');}
+  if(data.items.length){
+    document.getElementById('notifList').innerHTML=data.items.map(n=>`
+      <div class="notif-item${!n.is_read?' unread':''}" onclick="openNotif('${n.news_id||''}',${n.id})"><h4>${esc(n.title)}</h4><div class="time">${n.created_at_ago}</div></div>`).join('');
+    document.getElementById('notifEmpty').style.display='none';
+  }else{document.getElementById('notifEmpty').style.display='block';}
+}
+function toggleNotif(e){e.stopPropagation();document.getElementById('notifDropdown').classList.toggle('show');}
+document.addEventListener('click',()=>document.getElementById('notifDropdown').classList.remove('show'));
+async function markAllRead(){await api('/api/user/notifications/read-all',{method:'PUT'});pollNotifications();}
+async function openNotif(newsId,notifId){
+  await api(`/api/user/notifications/${notifId}/read`,{method:'PUT'});
+  document.getElementById('notifDropdown').classList.remove('show');
+  if(newsId)openDetail(newsId);
+  pollNotifications();
+}
+
+// ==================== ADMIN ====================
+async function loadAdmin(){
+  if(currentUser?.role!=='admin'){navigate('home');return;}
+  const stats=await api('/api/admin/stats');
+  if(stats){
+    document.getElementById('adminStatsRow').innerHTML=`
+      <div class="stat-card"><div class="stat-label">监测站点</div><div class="stat-value" style="color:var(--blue)">${stats.active_sites||0}</div><div class="stat-sub">共 ${stats.total_sites||0} 个站点</div></div>
+      <div class="stat-card"><div class="stat-label">新闻总数</div><div class="stat-value" style="color:var(--accent)">${stats.total_news}</div><div class="stat-sub">今日新增 ${stats.today_news}</div></div>
+      <div class="stat-card"><div class="stat-label">注册用户</div><div class="stat-value" style="color:var(--green)">${stats.total_all_users||stats.total_users}</div><div class="stat-sub">管理员 ${stats.total_admins} / 普通 ${stats.total_users}</div></div>
+      <div class="stat-card"><div class="stat-label">累计推送</div><div class="stat-value" style="color:var(--orange)">${stats.total_notifications}</div><div class="stat-sub">上次: ${stats.last_push}</div></div>`;
+  }
+  const sites=await api('/api/admin/sites');
+  if(sites){
+    const now=new Date().toLocaleString('zh-CN');
+    document.getElementById('adminSiteTable').innerHTML=sites.map(s=>{
+      let cfg='<span style="color:var(--muted)">未配置</span>';
+      if(s.scraper_config){try{const c=JSON.parse(s.scraper_config);cfg=(c.list_url||'').replace(/^https?:\/\//,'').substring(0,30)+'<br>'+(c.detail_content_selector||'auto').substring(0,20);}catch(e){}}
+      return `<tr><td>${esc(s.name)}${s.scraper_config?'':'<br><span style="color:var(--orange);font-size:.72rem">需配置</span>'}</td><td>${esc(s.url||'-')}</td><td class="center" style="font-size:.72rem;max-width:180px;word-break:break-all">${cfg}</td><td class="center">${s.frequency}</td><td class="center"><span class="status-dot ${s.status==='running'?'green':'orange'}"></span>${s.status==='running'?'运行中':'警告'}</td><td class="center">${s.last_checked?esc(s.last_checked):now}</td><td class="center" style="white-space:nowrap"><button class="btn-sm" onclick="editSite(${s.id})" title="编辑配置">配置</button> <button class="btn-sm play" onclick="scanSite(${s.id})">采集</button> <button class="btn-sm ${s.status==='running'?'danger':'play'}" onclick="toggleSiteStatus(${s.id},'${s.status==='running'?'stopped':'running'}')">${s.status==='running'?'停':'启'}</button> <button class="btn-sm danger" onclick="deleteSite(${s.id})">删</button></td></tr>`;
+    }).join('');
+  }
+  const users=await api('/api/admin/users');
+  if(users){
+    document.getElementById('adminUserTable').innerHTML=users.map(u=>`
+      <tr><td>${esc(u.username)}</td><td>${esc(u.display_name)}</td><td>${esc(u.department||'-')}</td><td>${u.role==='admin'?'管理员':'普通用户'}</td><td>${esc(u.preferred_categories||'-')}</td><td><span class="status-dot ${u.status==='active'?'green':'red'}"></span>${u.status==='active'?'在线':'已禁用'}</td><td><button class="btn-sm danger" onclick="toggleUserStatus(${u.id},'${u.status==='active'?'inactive':'active'}')">${u.status==='active'?'禁用':'启用'}</button></td></tr>`).join('');
+  }
+  const logs=await api('/api/admin/push-logs?limit=10');
+  if(logs){
+    document.getElementById('pushLogTable').innerHTML=logs.map(l=>`<tr><td>${l.created_at}</td><td>${l.push_type}</td><td>${l.target_count}</td><td>${l.success_count}</td><td>${l.news_count}</td></tr>`).join('');
+  }
+  loadScanLogs();
+}
+
+async function triggerPush(){
+  // ... scan at end of admin load
+  const el=document.getElementById('pushResult');
+  el.style.display='block';el.innerHTML='<div class="loader">正在执行推送...</div>';
+  const data=await api('/api/admin/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({days_back:7})});
+  if(data){el.innerHTML=`<strong>✓ ${data.msg}</strong><br>扫描用户: ${data.users_scanned} | 匹配用户: ${data.users_affected} | 生成通知: ${data.notifications_created}`;}
+  else{el.innerHTML='<span style="color:var(--red)">推送失败</span>';}
+  loadAdmin();pollNotifications();
+}
+async function toggleUserStatus(userId,newStatus){
+  await api(`/api/admin/users/${userId}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:newStatus})});
+  loadAdmin();
+}
+
+// BATCH AI SUMMARIZE
+async function batchSummarize(){
+  const el=document.getElementById('batchResult');
+  el.style.display='block';el.innerHTML='<div class="loader">正在批量生成智能总结...</div>';
+  const data=await api('/api/admin/batch-summarize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:20,use_ai:false})});
+  if(data)el.innerHTML=`<strong>✓ 批量总结完成</strong><br>处理: ${data.processed} 篇<br>${data.items.map(i=>`${i.news_id} — ${esc(i.title)} [${i.source}]`).join('<br>')}`;
+  else el.innerHTML='<span style="color:var(--red)">批量总结失败</span>';
+  loadAdmin();
+}
+
+// REFETCH CONTENT
+async function refetchAllContent(){
+  const el=document.getElementById('batchResult');
+  el.style.display='block';el.innerHTML='<div class="loader">正在重新抓取完整正文...</div>';
+  try{
+    const news=await api('/api/news?per_page=20');
+    if(!news||!news.items){el.innerHTML='<span style="color:var(--red)">获取新闻列表失败</span>';return;}
+    let count=0;
+    const results=[];
+    for(const n of news.items){
+      const r=await fetch(`/api/news/${n.news_id}/refetch-content`,{method:'POST',headers:{'Content-Type':'application/json'}});
+      const j=await r.json();
+      if(j.code===0){count++;results.push(`${n.news_id}: ${j.data.content_length} 字`);}
+    }
+    el.innerHTML=`<strong>✓ 正文补全完成</strong><br>更新: ${count} 篇<br>${results.slice(0,10).join('<br>')}`;
+  }catch(e){el.innerHTML='<span style="color:var(--red)">补全失败: '+esc(String(e))+'</span>';}
+}
+
+// ==================== SITE MANAGEMENT ====================
+function showAddSiteModal(){
+  document.getElementById('siteModalTitle').textContent='添加监测站点';
+  document.getElementById('editSiteId').value='';
+  document.getElementById('newSiteName').value='';
+  document.getElementById('newSiteUrl').value='';
+  document.getElementById('newSiteFreq').value='每日1次';
+  document.getElementById('newSiteConfig').value='';
+  document.getElementById('addSiteModal').classList.add('show');
+}
+function closeAddSiteModal(){document.getElementById('addSiteModal').classList.remove('show');}
+async function editSite(siteId){
+  const sites=await api('/api/admin/sites');if(!sites)return;
+  const s=sites.find(x=>x.id===siteId);if(!s)return;
+  document.getElementById('siteModalTitle').textContent='编辑监测站点';
+  document.getElementById('editSiteId').value=s.id;
+  document.getElementById('newSiteName').value=s.name||'';
+  document.getElementById('newSiteUrl').value=s.url||'';
+  document.getElementById('newSiteFreq').value=s.frequency||'每日1次';
+  document.getElementById('newSiteConfig').value=s.scraper_config?JSON.stringify(JSON.parse(s.scraper_config),null,2):'';
+  document.getElementById('addSiteModal').classList.add('show');
+}
+function validateSiteConfig(){
+  try{const c=JSON.parse(document.getElementById('newSiteConfig').value);alert('JSON 格式正确! 字段: '+Object.keys(c).join(', '));}catch(e){alert('JSON 格式错误: '+e.message);}
+}
+async function saveNewSite(){
+  const editId=document.getElementById('editSiteId').value;
+  const name=document.getElementById('newSiteName').value.trim();
+  const url=document.getElementById('newSiteUrl').value.trim();
+  const freq=document.getElementById('newSiteFreq').value;
+  const rawConfig=document.getElementById('newSiteConfig').value.trim();
+  if(!name){alert('站点名称不能为空');return;}
+  let config='';
+  if(rawConfig){try{JSON.parse(rawConfig);config=rawConfig;}catch(e){alert('爬虫配置 JSON 格式错误: '+e.message);return;}}
+  const payload={name,url,frequency:freq,scraper_config:config};
+  const res=await fetch(editId?`/api/admin/sites/${editId}`:'/api/admin/sites',{method:editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const json=await res.json();
+  if(json.code===0){closeAddSiteModal();loadAdmin();}
+  else alert(json.msg);
+}
+async function toggleSiteStatus(siteId,newStatus){
+  await api(`/api/admin/sites/${siteId}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:newStatus})});
+  loadAdmin();
+}
+async function deleteSite(siteId){if(!confirm('确定删除该站点?'))return;await api(`/api/admin/sites/${siteId}`,{method:'DELETE'});loadAdmin();}
+
+// ==================== SCAN FUNCTIONS ====================
+async function startFullScan(){
+  const msg=document.getElementById('scanMsg');
+  msg.style.display='block';msg.innerHTML='<div class="loader">正在启动全站扫描...</div>';
+  const data=await api('/api/admin/scan-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pages:3})});
+  if(data){msg.innerHTML='<strong>'+data.msg+'</strong><br>查看下方采集日志了解进度';}
+  else{msg.innerHTML='<span style="color:var(--red)">扫描启动失败</span>';}
+  setTimeout(loadScanLogs,3000);
+}
+async function scanSite(siteId){
+  const msg=document.getElementById('scanMsg');
+  msg.style.display='block';msg.innerHTML='<div class="loader">正在启动站点扫描...</div>';
+  const data=await api(`/api/admin/scan-site/${siteId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pages:3})});
+  if(data){msg.innerHTML='<strong>'+data.msg+'</strong>';}
+  else{msg.innerHTML='<span style="color:var(--red)">扫描启动失败</span>';}
+  setTimeout(loadScanLogs,3000);
+}
+async function loadScanLogs(){
+  const logs=await api('/api/admin/scan-logs');
+  if(!logs||!logs.length){document.getElementById('scanLogsContainer').innerHTML='<p style="color:var(--muted);padding:14px;margin:0">暂无采集记录</p>';return;}
+  document.getElementById('scanLogsContainer').innerHTML='<table class="admin-table"><thead><tr><th>时间</th><th class="center">扫描站点</th><th class="center">成功/失败</th><th class="center">新增新闻</th><th class="center">耗时</th></tr></thead><tbody>'+logs.map(l=>`<tr><td>${l.created_at||'-'}</td><td class="center">${l.total_sites}</td><td class="center">${l.success_count} / ${l.fail_count}</td><td class="center">${l.new_news_count}</td><td class="center">${l.duration_seconds}s</td></tr>`).join('')+'</tbody></table>';
+}
+
+// USER CREATION
+function showCreateUserModal(){document.getElementById('createUserModal').classList.add('show');}
+function closeCreateUserModal(){document.getElementById('createUserModal').classList.remove('show');}
+async function createUser(){
+  const username=document.getElementById('newUsername').value.trim();
+  const password=document.getElementById('newPassword').value;
+  const display_name=document.getElementById('newDisplayName').value.trim();
+  const department=document.getElementById('newDepartment').value.trim();
+  if(!username||!password||!display_name){alert('用户名、密码和显示名称不能为空');return;}
+  const res=await fetch('/api/admin/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password,display_name,department})});
+  const json=await res.json();
+  if(json.code===0){closeCreateUserModal();loadAdmin();}
+  else alert(json.msg);
+}
+
+// ==================== UTILS ====================
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function renderPagination(elId,page,totalPages,onClick){
+  const el=document.getElementById(elId);
+  if(totalPages<=1){el.innerHTML='';return;}
+  let html='';
+  html+=`<button class="page-btn" onclick="void(0)" ${page<=1?'disabled':''} data-p="${page-1}">上一页</button>`;
+  for(let i=1;i<=totalPages;i++){
+    if(i===page)html+=`<button class="page-btn active">${i}</button>`;
+    else if(Math.abs(i-page)<=2||i<=2||i>=totalPages-1)html+=`<button class="page-btn" onclick="void(0)" data-p="${i}">${i}</button>`;
+    else if(i===3||i===totalPages-2)html+=`<span style="color:var(--text-dim)">...</span>`;
+  }
+  html+=`<button class="page-btn" onclick="void(0)" ${page>=totalPages?'disabled':''} data-p="${page+1}">下一页</button>`;
+  el.innerHTML=html;
+  el.querySelectorAll('.page-btn').forEach(b=>{
+    b.addEventListener('click',()=>{const p=parseInt(b.dataset.p);if(p&&p!==page)onClick(p);});
+  });
+}
+function updateTime(){
+  document.getElementById('topbarTime').textContent=new Date().toLocaleString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+</script>
+</body>
+</html>();
+    if(json.code!==0){showLoginError(json.msg);return;}
+    currentUser=json.data;
+    document.getElementById('login-overlay').style.display='none';
+    document.getElementById('app').style.display='flex';
+    document.getElementById('nav-admin').style.display=currentUser.role==='admin'?'flex':'none';
+    document.getElementById('userAvatarText').textContent=currentUser.display_name[0];
+    document.getElementById('sidebarName').textContent=currentUser.display_name;
+    document.getElementById('sidebarRole').textContent=currentUser.role==='admin'?'管理员':'普通用户';
+    document.getElementById('loginError').style.display='none';
+    document.getElementById('welcomeName').textContent=currentUser.display_name;
+    updateTime();setInterval(updateTime,30000);
+    navigate('home');
+    pollNotifications();setInterval(pollNotifications,60000);
+  }catch(e){showLoginError('登录失败，请检查网络');}
+}
+function showLoginError(msg){const el=document.getElementById('loginError');el.textContent=msg;el.style.display='block';}
+
+async function doLogout(){
+  await fetch('/api/auth/logout',{method:'POST'});
+  currentUser=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-overlay').style.display='flex';
+}
+
+// ==================== API HELPER ====================
+async function api(url, opts={}){
+  try{
+    const res=await fetch(url,{credentials:'same-origin',...opts});
+    if(res.status===401){doLogout();return null;}
+    const json=await res.json();
+    if(json.code!==0&&json.code!==undefined)throw new Error(json.msg);
+    return json.data;
+  }catch(e){console.error(url,e);return null;}
+}
+
+// ==================== NAV ====================
+function navigate(page){
+  prevPage=currentPage;currentPage=page;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+  const titles={home:'首页总览',category:'分类浏览',search:'新闻检索',detail:'新闻详情',profile:'个人中心',admin:'系统管理'};
+  document.getElementById('pageTitle').textContent=titles[page]||'';
+  if(page==='home')loadHome();
+  else if(page==='category')loadCategory();
+  else if(page==='search')loadSearchPage();
+  else if(page==='profile')loadProfile();
+  else if(page==='admin')loadAdmin();
+}
+function navigateBack(){navigate(prevPage);}
+
+// ==================== HOME ====================
+async function loadHome(){
+  document.getElementById('welcomeDate').textContent=new Date().toLocaleString('zh-CN',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const stats=await api('/api/stats');
+  if(stats){
+    const sites=stats.total_sites||0;
+    const lastColl=stats.last_collection;
+    document.getElementById('statsRow').innerHTML=`
+      <div class="stat-card"><div class="stat-label">监测站点数</div><div class="stat-value" style="color:var(--blue)">${sites}</div><div class="stat-sub">正常运行中</div></div>
+      <div class="stat-card"><div class="stat-label">累计新闻数</div><div class="stat-value" style="color:var(--accent)">${stats.total}</div><div class="stat-sub">今日新增 ${stats.today}</div></div>
+      <div class="stat-card"><div class="stat-label">今日阅读量</div><div class="stat-value" style="color:var(--green)">${stats.today_reads||0}</div><div class="stat-sub">用户活跃度</div></div>
+      <div class="stat-card"><div class="stat-label">新闻分类数</div><div class="stat-value" style="color:var(--orange)">${stats.categories.length}</div><div class="stat-sub">智能分类</div></div>`;
+    renderCatChart(stats.categories);
+  }
+  // Collection status
+  const coll=await api('/api/admin/collection-status');
+  if(coll){
+    document.getElementById('statusPanel').innerHTML=`
+      <div class="status-item"><span class="status-label">运行状态</span><span class="status-val running"><span class="status-dot-sm" style="background:var(--green)"></span>运行中</span></div>
+      <div class="status-item"><span class="status-label">运行中站点</span><span class="status-val">${coll.running} / ${coll.total_sites}</span></div>
+      <div class="status-item"><span class="status-label">今日采集次数</span><span class="status-val">${coll.today_collects||0}</span></div>
+      <div class="status-item"><span class="status-label">今日新增新闻</span><span class="status-val" style="color:var(--green)">${coll.today_news||0}</span></div>
+      <div class="status-item"><span class="status-label">最后采集时间</span><span class="status-val">${coll.latest?coll.latest.created_at:'暂无'}</span></div>`;
+  }
+  const news=await api('/api/user/recommended');
+  renderNewsCards('homeNewsList',news||[],true);
+}
+
+function renderCatChart(categories){
+  const max=Math.max(...categories.map(c=>c.count),1);
+  document.getElementById('catChart').innerHTML=categories.map(c=>`
+    <div class="cat-bar-row"><span class="name">${c.category}</span><div class="cat-bar-bg"><div class="cat-bar-fill" style="width:${(c.count/max*100).toFixed(0)}%;background:${CAT_COLORS[c.category]||'var(--text-muted)'}"></div></div><span class="count">${c.count}</span></div>
+  `).join('');
+}
+
+function renderNewsCards(elId, items, showRelevance){
+  const el=document.getElementById(elId);
+  if(!items||!items.length){el.innerHTML='<div class="empty-state"><div class="icon">📭</div><p>暂无新闻</p></div>';return;}
+  el.innerHTML=items.map(n=>`
+    <div class="news-card" onclick="openDetail('${n.news_id}')">
+      <div class="cat-line ${n.category}"></div><div class="news-body"><h3>${esc(n.title)}</h3>
+      <div class="news-meta"><span class="cat-tag ${n.category}">${n.category}</span>${n.source?`<span class="info">${esc(n.source)}</span>`:''}<span class="info">${n.publish_date||''}</span></div>
+      ${n.summary?`<div class="news-summary">${esc(n.summary)}</div>`:''}</div>
+      ${showRelevance?`<div class="relevance-badge"><div class="score">${n.relevance||n.views||0}%</div><div class="label">相关度</div></div>`:`<div class="news-views"><div class="num">${n.views||0}</div><div class="label">浏览</div></div>`}
+    </div>`).join('');
+}
+
+// ==================== CATEGORY ====================
+async function loadCategory(cat, page){
+  if(cat!==undefined)currentCategory=cat;
+  if(page!==undefined)catPage=page;else catPage=1;
+  const cats=await api('/api/categories');
+  if(cats){document.getElementById('filterTabs').innerHTML=['全部',...cats.map(c=>c.category)].map(c=>`<span class="filter-tab${c===currentCategory?' active':''}" onclick="loadCategory('${c}',1)">${c}</span>`).join('');}
+  let url=`/api/news?page=${catPage}&per_page=${PER_PAGE}`;
+  if(currentCategory!=='全部')url+=`&category=${encodeURIComponent(currentCategory)}`;
+  const data=await api(url);
+  if(data){renderNewsCards('catNewsList',data.items,false);renderPagination('catPagination',catPage,data.total_pages,p=>loadCategory(undefined,p));}
+}
+
+// ==================== SEARCH ====================
+async function loadSearchPage(){
+  const cats=await api('/api/categories');
+  if(cats){document.getElementById('searchFilterTabs').innerHTML=['全部',...cats.map(c=>c.category)].map(c=>`<span class="filter-tab${c===currentSearchCategory?' active':''}" onclick="setSearchCat('${c}')">${c}</span>`).join('');}
+}
+function setSearchCat(cat){currentSearchCategory=cat;loadSearchPage();}
+async function doSearch(){
+  const kw=document.getElementById('searchInput').value.trim();if(!kw)return;
+  searchPage=1;
+  let url=`/api/news?page=1&per_page=${PER_PAGE}&keyword=${encodeURIComponent(kw)}`;
+  if(currentSearchCategory!=='全部')url+=`&category=${encodeURIComponent(currentSearchCategory)}`;
+  const data=await api(url);
+  if(data){
+    document.getElementById('searchResultLabel').style.display='block';
+    document.getElementById('searchResultLabel').textContent=`找到 ${data.total} 条相关新闻`;
+    renderNewsCards('searchResultList',data.items,false);
+    renderPagination('searchPagination',1,data.total_pages,async p=>{
+      let u=`/api/news?page=${p}&per_page=${PER_PAGE}&keyword=${encodeURIComponent(kw)}`;
+      if(currentSearchCategory!=='全部')u+=`&category=${encodeURIComponent(currentSearchCategory)}`;
+      const d=await api(u);if(d){renderNewsCards('searchResultList',d.items,false);renderPagination('searchPagination',p,d.total_pages,arguments.callee);}
+    });
+  }
+}
+
+// ==================== DETAIL ====================
+async function openDetail(newsId){
+  navigate('detail');
+  document.getElementById('detailContent').innerHTML='<div class="loader">加载中...</div>';
+  const data=await api(`/api/news/${newsId}`);
+  if(!data){document.getElementById('detailContent').innerHTML='<div class="empty-state"><p>新闻不存在</p></div>';return;}
+  await api('/api/user/reading-history',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({news_id:newsId})});
+  document.getElementById('detailContent').innerHTML=`
+    <div class="detail-header"><h1>${esc(data.title)}</h1>
+      <div class="detail-meta"><span class="cat-tag ${data.category}">${data.category}</span><span class="sep"></span><span>发布: ${data.publish_date||'未知'}</span>${data.source?`<span class="sep"></span><span>来源: ${esc(data.source)}</span>`:''}<span class="sep"></span><span>浏览: ${data.views||0} 次</span></div></div>
+    <div class="detail-content"><div class="text">${esc(data.content||'暂无正文')}</div>
+      <div class="detail-source">原文链接: <a href="${data.url}" target="_blank">${data.url}</a></div></div>`;
+}
+
+// ==================== PROFILE ====================
+async function loadProfile(){
+  const data=await api('/api/user/profile');
+  if(!data)return;
+  const u=data.user,s=data.stats;
+  document.getElementById('profileAvatar').textContent=u.avatar_text;
+  document.getElementById('profileName').textContent=u.display_name;
+  document.getElementById('profileDept').textContent=u.department||'未设置';
+  document.getElementById('profileStats').innerHTML=`
+    <div class="ps-card"><div class="val">${s.total_reads}</div><div class="label">累计阅读</div></div>
+    <div class="ps-card"><div class="val">${s.month_reads}</div><div class="label">本月阅读</div></div>
+    <div class="ps-card"><div class="val">${s.favorites}</div><div class="label">收藏新闻</div></div>`;
+  if(data.preferences){
+    currentPrefs=data.preferences;
+    document.getElementById('togglePush').classList.toggle('on',!!data.preferences.push_enabled);
+    document.getElementById('toggleDigest').classList.toggle('on',!!data.preferences.daily_digest);
+    document.getElementById('toggleDeadline').classList.toggle('on',!!data.preferences.deadline_reminder);
+    document.getElementById('prefCats').textContent=data.preferences.preferred_categories||'全部';
+    document.getElementById('prefKws').textContent=data.preferences.preferred_keywords||'无';
+  }
+}
+async function togglePref(field){
+  const el=document.getElementById(field==='push_enabled'?'togglePush':field==='daily_digest'?'toggleDigest':'toggleDeadline');
+  const newVal=!el.classList.contains('on');
+  currentPrefs[field]=newVal?1:0;
+  await api('/api/user/preferences',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(currentPrefs)});
+  loadProfile();
+}
+function showPrefModal(){
+  document.getElementById('inputPrefCats').value=currentPrefs.preferred_categories||'';
+  document.getElementById('inputPrefKws').value=currentPrefs.preferred_keywords||'';
+  document.getElementById('prefModal').classList.add('show');
+}
+function closePrefModal(){document.getElementById('prefModal').classList.remove('show');}
+async function savePreferences(){
+  currentPrefs.preferred_categories=document.getElementById('inputPrefCats').value.trim();
+  currentPrefs.preferred_keywords=document.getElementById('inputPrefKws').value.trim();
+  await api('/api/user/preferences',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(currentPrefs)});
+  closePrefModal();loadProfile();
+}
+
+// ==================== NOTIFICATIONS ====================
+async function pollNotifications(){
+  if(!currentUser)return;
+  const data=await api('/api/user/notifications?limit=5');
+  if(!data)return;
+  const badge=document.getElementById('notifBadge');
+  if(data.unread>0){badge.textContent=data.unread;badge.classList.add('show');}
+  else{badge.classList.remove('show');}
+  if(data.items.length){
+    document.getElementById('notifList').innerHTML=data.items.map(n=>`
+      <div class="notif-item${!n.is_read?' unread':''}" onclick="openNotif('${n.news_id||''}',${n.id})"><h4>${esc(n.title)}</h4><div class="time">${n.created_at_ago}</div></div>`).join('');
+    document.getElementById('notifEmpty').style.display='none';
+  }else{document.getElementById('notifEmpty').style.display='block';}
+}
+function toggleNotif(e){e.stopPropagation();document.getElementById('notifDropdown').classList.toggle('show');}
+document.addEventListener('click',()=>document.getElementById('notifDropdown').classList.remove('show'));
+async function markAllRead(){await api('/api/user/notifications/read-all',{method:'PUT'});pollNotifications();}
+async function openNotif(newsId,notifId){
+  await api(`/api/user/notifications/${notifId}/read`,{method:'PUT'});
+  document.getElementById('notifDropdown').classList.remove('show');
+  if(newsId)openDetail(newsId);
+  pollNotifications();
+}
+
+// ==================== ADMIN ====================
+async function loadAdmin(){
+  if(currentUser?.role!=='admin'){navigate('home');return;}
+  const stats=await api('/api/admin/stats');
+  if(stats){
+    document.getElementById('adminStatsRow').innerHTML=`
+      <div class="stat-card"><div class="stat-label">监测站点</div><div class="stat-value" style="color:var(--blue)">${stats.active_sites||0}</div><div class="stat-sub">共 ${stats.total_sites||0} 个站点</div></div>
+      <div class="stat-card"><div class="stat-label">新闻总数</div><div class="stat-value" style="color:var(--accent)">${stats.total_news}</div><div class="stat-sub">今日新增 ${stats.today_news}</div></div>
+      <div class="stat-card"><div class="stat-label">注册用户</div><div class="stat-value" style="color:var(--green)">${stats.total_all_users||stats.total_users}</div><div class="stat-sub">管理员 ${stats.total_admins} / 普通 ${stats.total_users}</div></div>
+      <div class="stat-card"><div class="stat-label">累计推送</div><div class="stat-value" style="color:var(--orange)">${stats.total_notifications}</div><div class="stat-sub">上次: ${stats.last_push}</div></div>`;
+  }
+  // Sites
+  const sites=await api('/api/admin/sites');
+  if(sites){
+    const now=new Date().toLocaleString('zh-CN');
+    document.getElementById('adminSiteTable').innerHTML=sites.map(s=>{
+      let cfg='<span style="color:var(--muted)">未配置</span>';
+      if(s.scraper_config){try{const c=JSON.parse(s.scraper_config);cfg=(c.list_url||'').replace(/^https?:\/\//,'').substring(0,30)+'<br>→'+(c.detail_content_selector||'auto').substring(0,20);}catch(e){}}
+      return `<tr><td>${esc(s.name)}${s.scraper_config?'':'<br><span style="color:var(--orange);font-size:.72rem">需配置</span>'}</td><td>${esc(s.url||'-')}</td><td class="center" style="font-size:.72rem;max-width:180px;word-break:break-all">${cfg}</td><td class="center">${s.frequency}</td><td class="center"><span class="status-dot ${s.status==='running'?'green':'orange'}"></span>${s.status==='running'?'运行中':'警告'}</td><td class="center">${s.last_checked?esc(s.last_checked):now}</td><td class="center" style="white-space:nowrap"><button class="btn-sm" onclick="editSite(${s.id})" title="编辑配置">配置</button> <button class="btn-sm play" onclick="scanSite(${s.id})" title="立即扫描">采集</button> <button class="btn-sm ${s.status==='running'?'danger':'play'}" onclick="toggleSiteStatus(${s.id},'${s.status==='running'?'stopped':'running'}')" title="${s.status==='running'?'停止':'启动'}">${s.status==='running'?'停':'启'}</button> <button class="btn-sm danger" onclick="deleteSite(${s.id})">删</button></td></tr>`;
+    }).join('');
+  }
+  // Users
+  const users=await api('/api/admin/users');
+  if(users){
+    document.getElementById('adminUserTable').innerHTML=users.map(u=>`
+      <tr><td>${esc(u.username)}</td><td>${esc(u.display_name)}</td><td>${esc(u.department||'-')}</td><td>${u.role==='admin'?'管理员':'普通用户'}</td><td>${esc(u.preferred_categories||'-')}</td><td><span class="status-dot ${u.status==='active'?'green':'red'}"></span>${u.status==='active'?'在线':'已禁用'}</td><td><button class="btn-sm danger" onclick="toggleUserStatus(${u.id},'${u.status==='active'?'inactive':'active'}')">${u.status==='active'?'禁用':'启用'}</button></td></tr>`).join('');
+  }
+  // Push logs
+  const logs=await api('/api/admin/push-logs?limit=10');
+  if(logs){
+    document.getElementById('pushLogTable').innerHTML=logs.map(l=>`<tr><td>${l.created_at}</td><td>${l.push_type}</td><td>${l.target_count}</td><td>${l.success_count}</td><td>${l.news_count}</td></tr>`).join('');
+  }
+  loadScanLogs();
+}
+
+async function triggerPush(){
+  const el=document.getElementById('pushResult');
+  el.style.display='block';el.innerHTML='<div class="loader">正在执行推送...</div>';
+  const data=await api('/api/admin/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({days_back:7})});
+  if(data){el.innerHTML=`<strong>✓ ${data.msg}</strong><br>扫描用户: ${data.users_scanned} | 匹配用户: ${data.users_affected} | 生成通知: ${data.notifications_created}`;}
+  else{el.innerHTML='<span style="color:var(--red)">推送失败</span>';}
+  loadAdmin();pollNotifications();
+}
+async function toggleUserStatus(userId,newStatus){
+  await api(`/api/admin/users/${userId}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:newStatus})});
+  loadAdmin();
+}
+
+// SITE MANAGEMENT
+function showAddSiteModal(){document.getElementById('addSiteModal').classList.add('show');}
+function closeAddSiteModal(){document.getElementById('addSiteModal').classList.remove('show');}
+async function createSite(){
+  const name=document.getElementById('newSiteName').value.trim();
+  const url=document.getElementById('newSiteUrl').value.trim();
+  const freq=document.getElementById('newSiteFreq').value;
+  if(!name){alert('站点名称不能为空');return;}
+  const res=await fetch('/api/admin/sites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,url,frequency:freq})});
+  const json=await res.json
