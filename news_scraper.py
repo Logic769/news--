@@ -1,6 +1,6 @@
 """
-南昌航空大学新闻爬虫 - 南航要闻 (https://www.nchu.edu.cn/xwzx/chyw)
-爬取新闻列表+详情，分类存入MySQL数据库
+通用新闻爬虫
+从列表页爬取新闻列表+详情，分类存入MySQL数据库
 """
 
 import requests
@@ -20,8 +20,8 @@ REQUEST_DELAY = SCRAPER_DELAY
 START_PAGE = 1
 END_PAGE = 3
 
-LIST_URL = "https://www.nchu.edu.cn/xwzx/chyw"
-BASE_URL = "https://www.nchu.edu.cn"
+LIST_URL = ""   # 请在此处填入目标新闻列表页 URL
+BASE_URL = ""  # 请在此处填入目标网站根 URL
 
 # ==================== 日志 ====================
 
@@ -43,8 +43,8 @@ def classify_news(title, content=""):
     text = title + " " + (content[:500] if content else "")
 
     rules = [
-        ("党建思政", ["树立和践行正确政绩观", "习近平", "党建", "思政", "党史", "红色", "井冈山", "求是", "政治"]),
-        ("人物风采", ["微光成炬", "昌航温度", "榜样", "风采", "人物", "校友"]),
+        ("党建思政", ["习近平", "党建", "思政", "党史", "红色", "求是", "政治"]),
+        ("人物风采", ["微光成炬", "榜样", "风采", "人物", "校友"]),
         ("荣誉获奖", ["喜报", "获奖", "荣获", "表彰", "佳绩", "冠军", "第一", "金牌"]),
         ("教育教学", ["深化特色年", "教学", "教育", "课程", "专业认证", "思政课", "立德树人", "培养"]),
         ("学术科研", ["学术", "科研", "论坛", "研讨", "创新", "科技", "实验室", "研究"]),
@@ -101,7 +101,7 @@ def create_table():
                 INDEX idx_publish_date (publish_date),
                 INDEX idx_news_id (news_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-            COMMENT='南航要闻'
+            COMMENT='新闻资讯'
         """)
     conn.commit()
     conn.close()
@@ -335,7 +335,7 @@ def scrape_details(news_list):
 
 def main():
     logger.info("=" * 50)
-    logger.info("南昌航空大学新闻爬虫启动")
+    logger.info("通用新闻爬虫启动")
     logger.info("=" * 50)
 
     # 1. 初始化数据库

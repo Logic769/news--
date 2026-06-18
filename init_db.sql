@@ -1,12 +1,12 @@
 -- =============================================
--- 南昌航空大学新闻系统 - 完整数据库初始化
+-- 通用新闻检索分析推送系统 - 完整数据库初始化
 -- =============================================
 
-CREATE DATABASE IF NOT EXISTS `nchu_news`
+CREATE DATABASE IF NOT EXISTS `news_system`
     DEFAULT CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 
-USE `nchu_news`;
+USE `news_system`;
 
 -- ==================== 新闻表 ====================
 CREATE TABLE IF NOT EXISTS `news` (
@@ -15,8 +15,10 @@ CREATE TABLE IF NOT EXISTS `news` (
     `title`         VARCHAR(500) NOT NULL             COMMENT '新闻标题',
     `category`      VARCHAR(50)  NOT NULL DEFAULT '综合新闻' COMMENT '分类',
     `publish_date`  DATE                              COMMENT '发布日期',
-    `source`        VARCHAR(200)                      COMMENT '来源部门',
-    `views`         INT          DEFAULT 0            COMMENT '浏览次数（实时递增）',
+    `source`        VARCHAR(200)                      COMMENT '来源',
+    `author`        VARCHAR(100)                      COMMENT '作者',
+    `content_hash`  VARCHAR(64)                       COMMENT '内容 SHA-256 去重',
+    `views`         INT          DEFAULT 0             COMMENT '浏览次数（实时递增）',
     `content`       LONGTEXT                          COMMENT '新闻正文',
     `url`           VARCHAR(500)                      COMMENT '新闻原始链接',
     `ai_summary`    TEXT                              COMMENT 'AI 智能总结',
@@ -25,8 +27,9 @@ CREATE TABLE IF NOT EXISTS `news` (
     `created_at`    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP COMMENT '入库时间',
     INDEX `idx_category`     (`category`),
     INDEX `idx_publish_date` (`publish_date`),
-    INDEX `idx_news_id`      (`news_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='南航要闻';
+    INDEX `idx_news_id`      (`news_id`),
+    UNIQUE INDEX `idx_content_hash` (`content_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='新闻资讯';
 
 -- ==================== 用户表 ====================
 CREATE TABLE IF NOT EXISTS `users` (
@@ -97,6 +100,13 @@ CREATE TABLE IF NOT EXISTS `monitor_sites` (
     `url`           VARCHAR(200)                       COMMENT '站点地址',
     `frequency`     VARCHAR(30)  DEFAULT '每日2次'      COMMENT '采集频率',
     `status`        VARCHAR(20)  DEFAULT 'running'     COMMENT 'running / warning / stopped',
+    `scraper_config` JSON                              COMMENT '站点专属爬虫配置',
+    `crawler_code`  LONGTEXT                           COMMENT '自动生成的站点专属爬虫程序',
+    `crawler_file`  VARCHAR(500)                       COMMENT '爬虫脚本磁盘文件路径',
+    `analysis_report` TEXT                             COMMENT '网站结构分析报告',
+    `crawler_settings` JSON                            COMMENT '爬取深度、重试、过滤等自定义参数',
+    `last_status`   VARCHAR(50) DEFAULT 'pending'      COMMENT '最近采集状态',
+    `last_error`    TEXT                               COMMENT '最近异常或修复信息',
     `last_checked`  TIMESTAMP NULL                     COMMENT '最后采集时间',
     `created_at`    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='监测站点';
@@ -138,14 +148,4 @@ VALUES (2, '学术科研,荣誉获奖,交流合作', '新能源,技术,科研', 
 INSERT IGNORE INTO `user_preferences` (`user_id`, `preferred_categories`, `preferred_keywords`, `push_enabled`, `daily_digest`, `deadline_reminder`)
 VALUES (3, '教育教学,学术科研,荣誉获奖', '碳中和,环保,绿色', 1, 0, 1);
 
--- 默认监测站点
-INSERT IGNORE INTO `monitor_sites` (`name`, `url`, `frequency`, `status`) VALUES
-('南昌航空大学-南航要闻', 'www.nchu.edu.cn/chyw', '每日2次', 'running'),
-('南昌航空大学-通知公告', 'www.nchu.edu.cn/tzgg', '每日2次', 'running'),
-('南昌航空大学-学术动态', 'www.nchu.edu.cn/xsdt', '每日2次', 'running'),
-('南昌航空大学-媒体南航', 'www.nchu.edu.cn/mtnh', '每日1次', 'running'),
-('南昌航空大学-校园文化', 'www.nchu.edu.cn/xywh', '每日1次', 'running');
-
--- 默认采集日志
-INSERT IGNORE INTO `collection_logs` (`total_sites`, `success_count`, `fail_count`, `new_news_count`, `duration_seconds`)
-VALUES (5, 5, 0, 20, 45);
+-- 默认监测站点（留空，由用户通过管理后台添加）

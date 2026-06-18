@@ -1,6 +1,6 @@
 """
-南昌航空大学新闻系统 - Flask 后端
-新闻展示 + 用户认证 + 个人中心 + 系统管理 + 智能推送
+通用新闻检索分析推送系统 - Flask 后端
+新闻采集 + AI分析 + 用户认证 + 个性化推送 + 系统管理
 """
 
 from flask import Flask, jsonify, request, render_template, session
@@ -746,6 +746,60 @@ def api_analyze_site():
         return jsonify({"code": -1, "msg": str(e)}), 500
 
 
+@app.route("/api/admin/sites/import", methods=["POST"])
+@admin_required
+def api_import_custom_site():
+    """导入自定义网站，自动分析结构并生成站点专属爬虫配置"""
+    try:
+        data = request.get_json() or {}
+        url = data.get("url", "").strip()
+        name = data.get("name", "").strip()
+        freq = data.get("frequency", "每日2次")
+        settings = data.get("settings", {}) or {}
+        auto_scan = bool(data.get("auto_scan", False))
+        if not url:
+            return jsonify({"code": -1, "msg": "请输入网站 URL"})
+
+        import site_scanner
+        config, report, crawler_code, crawler_file = site_scanner.build_site_profile(url, name, settings)
+        if not name:
+            name = report.get("site_name") or config.get("base_url") or url
+        config_json = json.dumps(config, ensure_ascii=False)
+        report_json = json.dumps(report, ensure_ascii=False)
+        settings_json = json.dumps(settings, ensure_ascii=False)
+
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO monitor_sites
+                   (name, url, frequency, scraper_config, crawler_code, crawler_file, analysis_report, crawler_settings, status, last_status)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'running','imported')""",
+                [name, url, freq, config_json, crawler_code, crawler_file, report_json, settings_json]
+            )
+            site_id = cur.lastrowid
+            cur.execute("SELECT * FROM monitor_sites WHERE id=%s", [site_id])
+            site = cur.fetchone()
+        conn.commit()
+        conn.close()
+
+        if auto_scan:
+            import threading
+            pages = max(1, min(int(settings.get("pages", 2)), 20))
+            threading.Thread(target=site_scanner.scan_site, kwargs={"site": site, "pages": pages}, daemon=True).start()
+
+        return jsonify({"code": 0, "data": {
+            "site_id": site_id,
+            "site_name": name,
+            "config": config,
+            "report": report,
+            "crawler_code": crawler_code,
+            "crawler_file": crawler_file,
+            "msg": "自定义网站已导入，专属爬虫已生成" + ("，首次采集已启动" if auto_scan else ""),
+        }})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
 @app.route("/api/admin/sites/add-and-scan", methods=["POST"])
 @admin_required
 def api_add_and_scan():
@@ -761,42 +815,23 @@ def api_add_and_scan():
         if not url:
             return jsonify({"code": -1, "msg": "请输入网站 URL"})
 
-        # 1. 智能分析: AI 优先 → 规则回退
+        # 1. 智能分析并生成专属爬虫
         import site_scanner
-        ai_msg = ""
-        ai_config, ai_report = site_scanner.ai_generate_scraper_config(url)
-        if ai_config:
-            config = ai_config
-            ai_msg = f"（AI已分析: {ai_report}）"
-        else:
-            try:
-                config, report = site_scanner.auto_analyze_site(url)
-                ai_msg = f"（规则分析: {report.get('summary', '')}）"
-            except Exception as analyze_err:
-                # 分析失败时使用通用默认配置
-                if not url.startswith("http"):
-                    url = "https://" + url
-                base_url = "/".join(url.split("/")[:3])
-                config = {
-                    "list_url": url.rstrip("/"),
-                    "base_url": base_url,
-                    "encoding": "utf-8",
-                    "detail_meta_source": "auto",
-                    "list_item_selector": "a[href]",
-                    "detail_content_selector": "div.article-content",
-                    "news_id_pattern": r"(\d+)",
-                    "list_pagination": "",
-                }
-                ai_msg = f"（分析失败，使用默认配置）"
-
+        settings = data.get("settings", {}) or {}
+        config, report, crawler_code, crawler_file = site_scanner.build_site_profile(url, name, settings)
+        ai_msg = f"（{report.get('engine', 'auto')}分析: {report.get('summary', '')}）"
         config_json = json.dumps(config, ensure_ascii=False)
+        report_json = json.dumps(report, ensure_ascii=False)
+        settings_json = json.dumps(settings, ensure_ascii=False)
 
         # 2. 写入数据库
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO monitor_sites (name, url, frequency, scraper_config, status) VALUES (%s,%s,%s,%s,'running')",
-                [name, url, freq, config_json]
+                """INSERT INTO monitor_sites
+                   (name, url, frequency, scraper_config, crawler_code, crawler_file, analysis_report, crawler_settings, status, last_status)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'running','generated')""",
+                [name, url, freq, config_json, crawler_code, crawler_file, report_json, settings_json]
             )
             site_id = cur.lastrowid
         conn.commit()
@@ -851,35 +886,38 @@ def api_create_site():
         url = data.get("url", "").strip()
         freq = data.get("frequency", "每日2次")
         config = data.get("scraper_config", "")
+        settings = data.get("settings", {}) or {}
+        crawler_code = ""
+        crawler_file = ""
+        report_json = ""
+        settings_json = json.dumps(settings, ensure_ascii=False)
         ai_msg = ""
         if not name:
             return jsonify({"code": -1, "msg": "站点名称不能为空"})
         if isinstance(config, dict):
             config = json.dumps(config, ensure_ascii=False)
 
-        # 未提供配置时: AI 优先 → 规则分析回退
         if not config and url:
             import site_scanner
-            # 策略0: AI 生成
-            ai_config, ai_report = site_scanner.ai_generate_scraper_config(url)
-            if ai_config:
-                config = json.dumps(ai_config, ensure_ascii=False)
-                ai_msg = f"（AI已分析: {ai_report}）"
-            else:
-                # 策略1: 规则分析回退
-                try:
-                    auto_config, report = site_scanner.auto_analyze_site(url)
-                    config = json.dumps(auto_config, ensure_ascii=False)
-                    ai_msg = f"（规则分析: {report.get('summary', '')}）"
-                except Exception:
-                    config = ""
-                    ai_msg = "（分析失败，请手动配置）"
+            auto_config, report, crawler_code, crawler_file = site_scanner.build_site_profile(url, name, settings)
+            config = json.dumps(auto_config, ensure_ascii=False)
+            report_json = json.dumps(report, ensure_ascii=False)
+            ai_msg = f"（{report.get('engine', 'auto')}分析: {report.get('summary', '')}）"
+        elif config:
+            import site_scanner
+            parsed_config = json.loads(config) if isinstance(config, str) else config
+            parsed_config.update(settings)
+            config = json.dumps(parsed_config, ensure_ascii=False)
+            crawler_code = site_scanner.generate_site_crawler_code(name, parsed_config)
+            crawler_file = site_scanner.save_site_crawler_file(name, crawler_code)
 
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO monitor_sites (name, url, frequency, scraper_config, status) VALUES (%s,%s,%s,%s,'running')",
-                [name, url, freq, config]
+                """INSERT INTO monitor_sites
+                   (name, url, frequency, scraper_config, crawler_code, crawler_file, analysis_report, crawler_settings, status, last_status)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'running','saved')""",
+                [name, url, freq, config, crawler_code, crawler_file, report_json, settings_json]
             )
         conn.commit()
         conn.close()
@@ -895,14 +933,33 @@ def api_update_site(site_id):
     try:
         data = request.get_json()
         config = data.get("scraper_config")
+        settings = data.get("settings", {}) or {}
+        crawler_code = ""
+        crawler_file = ""
+        settings_json = json.dumps(settings, ensure_ascii=False)
         if isinstance(config, dict):
-            config = json.dumps(config, ensure_ascii=False)
+            config_obj = config
+            config_obj.update(settings)
+            config = json.dumps(config_obj, ensure_ascii=False)
+        elif config:
+            config_obj = json.loads(config)
+            config_obj.update(settings)
+            config = json.dumps(config_obj, ensure_ascii=False)
+        else:
+            config_obj = {}
+        if config_obj:
+            import site_scanner
+            crawler_code = site_scanner.generate_site_crawler_code(data.get("name", ""), config_obj)
+            crawler_file = site_scanner.save_site_crawler_file(data.get("name", ""), crawler_code)
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE monitor_sites SET name=%s, url=%s, frequency=%s, status=%s, scraper_config=%s WHERE id=%s",
+                """UPDATE monitor_sites
+                   SET name=%s, url=%s, frequency=%s, status=%s, scraper_config=%s,
+                       crawler_code=%s, crawler_file=%s, crawler_settings=%s, last_status='updated'
+                   WHERE id=%s""",
                 [data.get("name"), data.get("url"), data.get("frequency"),
-                 data.get("status", "running"), config, site_id]
+                 data.get("status", "running"), config, crawler_code, crawler_file, settings_json, site_id]
             )
         conn.commit()
         conn.close()
@@ -978,6 +1035,30 @@ def api_ai_fix_site(site_id):
             }})
         else:
             return jsonify({"code": -1, "msg": f"AI 修复失败: {ai_report}"}), 500
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+@app.route("/api/admin/sites/<int:site_id>/crawler-code", methods=["GET"])
+@admin_required
+def api_site_crawler_code(site_id):
+    """获取站点专属爬虫程序与文件路径"""
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("SELECT name, scraper_config, crawler_code, crawler_file FROM monitor_sites WHERE id=%s", [site_id])
+            site = cur.fetchone()
+        conn.close()
+        if not site:
+            return jsonify({"code": -1, "msg": "站点不存在"}), 404
+        code = site.get("crawler_code")
+        crawler_file = site.get("crawler_file", "")
+        if not code:
+            import site_scanner
+            config = json.loads(site.get("scraper_config") or "{}")
+            code = site_scanner.generate_site_crawler_code(site.get("name", ""), config)
+            crawler_file = site_scanner.save_site_crawler_file(site.get("name", ""), code)
+        return jsonify({"code": 0, "data": {"code": code, "crawler_file": crawler_file}})
     except Exception as e:
         return jsonify({"code": -1, "msg": str(e)}), 500
 
@@ -1114,6 +1195,25 @@ def api_scan_logs():
             logs = cur.fetchall()
         conn.close()
         return jsonify({"code": 0, "data": logs})
+    except Exception as e:
+        return jsonify({"code": -1, "msg": str(e)}), 500
+
+
+# ==================== 新闻去重 API ====================
+
+@app.route("/api/admin/news/dedup", methods=["POST"])
+@admin_required
+def api_dedup_news():
+    """一键去重：先回填已有数据 content_hash，再清理完全重复的冗余新闻"""
+    try:
+        import site_scanner
+        backfilled = site_scanner.backfill_content_hash()
+        deleted = site_scanner.dedup_news()
+        return jsonify({"code": 0, "data": {
+            "backfilled": backfilled,
+            "deleted": deleted,
+            "msg": f"已回填 {backfilled} 条哈希，清理 {deleted} 条冗余新闻",
+        }})
     except Exception as e:
         return jsonify({"code": -1, "msg": str(e)}), 500
 
@@ -1811,22 +1911,25 @@ def time_ago(dt_str):
     """计算相对时间"""
     if not dt_str:
         return ""
-    if isinstance(dt_str, str):
-        dt = datetime.strptime(dt_str[:19], "%Y-%m-%d %H:%M:%S")
-    else:
-        dt = dt_str
-    diff = datetime.now() - dt
-    seconds = int(diff.total_seconds())
-    if seconds < 60:
-        return "刚刚"
-    if seconds < 3600:
-        return f"{seconds // 60} 分钟前"
-    if seconds < 86400:
-        return f"{seconds // 3600} 小时前"
-    days = seconds // 86400
-    if days < 7:
-        return f"{days} 天前"
-    return dt.strftime("%m-%d %H:%M")
+    try:
+        if isinstance(dt_str, str):
+            dt = datetime.strptime(dt_str[:19], "%Y-%m-%d %H:%M:%S")
+        else:
+            dt = dt_str
+        diff = datetime.now() - dt
+        seconds = int(diff.total_seconds())
+        if seconds < 60:
+            return "刚刚"
+        if seconds < 3600:
+            return f"{seconds // 60} 分钟前"
+        if seconds < 86400:
+            return f"{seconds // 3600} 小时前"
+        days = seconds // 86400
+        if days < 7:
+            return f"{days} 天前"
+        return dt.strftime("%m-%d %H:%M")
+    except (ValueError, IndexError):
+        return str(dt_str)[:16] if dt_str else ""
 
 
 # ==================== 初始化数据库表 ====================
@@ -1840,7 +1943,7 @@ def init_db():
     )
     with conn.cursor() as cur:
         cur.execute(
-            "CREATE DATABASE IF NOT EXISTS `nchu_news` "
+            "CREATE DATABASE IF NOT EXISTS `news_system` "
             "DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
         )
     conn.close()
@@ -1936,15 +2039,30 @@ def init_db():
                 frequency VARCHAR(30) DEFAULT '每日2次',
                 status VARCHAR(20) DEFAULT 'running' COMMENT 'running / warning / stopped',
                 scraper_config JSON COMMENT '爬取配置: {list_url,detail_url_pattern,list_selector,detail_content_selector,...}',
+                crawler_code LONGTEXT,
+                crawler_file VARCHAR(500),
+                analysis_report TEXT,
+                crawler_settings JSON,
+                last_status VARCHAR(50) DEFAULT 'pending',
+                last_error TEXT,
                 last_checked TIMESTAMP NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
-        # 兼容：为已有表新增 scraper_config 列
-        try:
-            cur.execute("ALTER TABLE monitor_sites ADD COLUMN scraper_config JSON AFTER status")
-        except Exception:
-            pass
+        # 兼容：为已有表新增站点爬虫扩展列
+        for ddl in (
+            "ALTER TABLE monitor_sites ADD COLUMN scraper_config JSON AFTER status",
+            "ALTER TABLE monitor_sites ADD COLUMN crawler_code LONGTEXT AFTER scraper_config",
+            "ALTER TABLE monitor_sites ADD COLUMN crawler_file VARCHAR(500) AFTER crawler_code",
+            "ALTER TABLE monitor_sites ADD COLUMN analysis_report TEXT AFTER crawler_file",
+            "ALTER TABLE monitor_sites ADD COLUMN crawler_settings JSON AFTER analysis_report",
+            "ALTER TABLE monitor_sites ADD COLUMN last_status VARCHAR(50) DEFAULT 'pending' AFTER crawler_settings",
+            "ALTER TABLE monitor_sites ADD COLUMN last_error TEXT AFTER last_status",
+        ):
+            try:
+                cur.execute(ddl)
+            except Exception:
+                pass
         # collection_logs - 采集日志
         cur.execute("""
             CREATE TABLE IF NOT EXISTS collection_logs (
@@ -1971,18 +2089,34 @@ def init_db():
                 views INT DEFAULT 0,
                 content LONGTEXT,
                 url VARCHAR(500),
+                author VARCHAR(100),
+                content_hash VARCHAR(64),
                 ai_summary TEXT,
                 ai_keypoints TEXT,
                 ai_summarized_at TIMESTAMP NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_category (category),
                 INDEX idx_publish_date (publish_date),
-                INDEX idx_news_id (news_id)
+                INDEX idx_news_id (news_id),
+                UNIQUE INDEX idx_content_hash (content_hash)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
+        # 兼容已有表：补充 content_hash 列
+        try:
+            cur.execute("ALTER TABLE news ADD COLUMN content_hash VARCHAR(64) AFTER author")
+        except Exception:
+            pass
+        try:
+            cur.execute("ALTER TABLE news ADD UNIQUE INDEX idx_content_hash (content_hash)")
+        except Exception:
+            pass
         # 兼容已有表：补充 ai_summary / ai_keypoints 列
         try:
-            cur.execute("ALTER TABLE news ADD COLUMN ai_summary TEXT AFTER url")
+            cur.execute("ALTER TABLE news ADD COLUMN author VARCHAR(100) AFTER url")
+        except Exception:
+            pass
+        try:
+            cur.execute("ALTER TABLE news ADD COLUMN ai_summary TEXT AFTER author")
         except Exception:
             pass
         try:
@@ -2028,33 +2162,8 @@ def init_db():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
        
-        cur.execute("SELECT COUNT(*) AS c FROM monitor_sites")
-        if cur.fetchone()["c"] == 0:
-            import json as _json
-            default_sites = [
-                ("南昌航空大学-南航要闻", "www.nchu.edu.cn", "每日2次", "running",
-                    _json.dumps({"list_url":"https://www.nchu.edu.cn/xwzx/chyw","list_pagination":"?page={page}","list_item_selector":"a[href*='content_']","detail_meta_source":"meta","detail_content_selector":"div.v_news_content","date_format":"meta","encoding":"utf-8","news_id_pattern":"content_","base_url":"https://www.nchu.edu.cn"}, ensure_ascii=False)),
-                ("南昌航空大学-通知公告", "www.nchu.edu.cn", "每日2次", "running",
-                    _json.dumps({"list_url":"https://www.nchu.edu.cn/xwzx/tzgg","list_pagination":"?page={page}","list_item_selector":"a[href*='content_']","detail_meta_source":"meta","detail_content_selector":"div.v_news_content","date_format":"meta","encoding":"utf-8","news_id_pattern":"content_","base_url":"https://www.nchu.edu.cn"}, ensure_ascii=False)),
-                ("南昌航空大学-学术动态", "www.nchu.edu.cn", "每日2次", "running",
-                    _json.dumps({"list_url":"https://www.nchu.edu.cn/xwzx/xsdt","list_pagination":"?page={page}","list_item_selector":"a[href*='content_']","detail_meta_source":"meta","detail_content_selector":"div.v_news_content","date_format":"meta","encoding":"utf-8","news_id_pattern":"content_","base_url":"https://www.nchu.edu.cn"}, ensure_ascii=False)),
-                ("南昌航空大学-媒体南航", "www.nchu.edu.cn", "每日1次", "running",
-                    _json.dumps({"list_url":"https://www.nchu.edu.cn/xwzx/mtnh","list_pagination":"?page={page}","list_item_selector":"a[href*='content_']","detail_meta_source":"meta","detail_content_selector":"div.v_news_content","date_format":"meta","encoding":"utf-8","news_id_pattern":"content_","base_url":"https://www.nchu.edu.cn"}, ensure_ascii=False)),
-                ("南昌航空大学-校园文化", "www.nchu.edu.cn", "每日1次", "running",
-                    _json.dumps({"list_url":"https://www.nchu.edu.cn/xwzx/xywh","list_pagination":"?page={page}","list_item_selector":"a[href*='content_']","detail_meta_source":"meta","detail_content_selector":"div.v_news_content","date_format":"meta","encoding":"utf-8","news_id_pattern":"content_","base_url":"https://www.nchu.edu.cn"}, ensure_ascii=False)),
-            ]
-            for name, url, freq, status, config in default_sites:
-                cur.execute(
-                    "INSERT INTO monitor_sites (name, url, frequency, status, scraper_config) VALUES (%s,%s,%s,%s,%s)",
-                    [name, url, freq, status, config]
-                )
-        # 默认采集日志
-        cur.execute("SELECT COUNT(*) AS c FROM collection_logs")
-        if cur.fetchone()["c"] == 0:
-            cur.execute(
-                "INSERT INTO collection_logs (total_sites, success_count, fail_count, new_news_count, duration_seconds) "
-                "VALUES (5, 5, 0, 20, 45)"
-            )
+        # 默认监测站点：不预设任何硬编码站点，由用户通过管理后台添加
+        # 系统支持AI自动分析任意网站结构并生成爬虫配置
         # 默认管理员
         cur.execute(
             "INSERT IGNORE INTO users (username, password_hash, display_name, department, role, avatar_text) "
@@ -2096,7 +2205,7 @@ def init_db():
 if __name__ == "__main__":
     init_db()
     print("=" * 50)
-    print("南昌航空大学新闻系统")
+    print("通用新闻检索分析推送系统")
     print("访问地址: http://127.0.0.1:5000")
     print(f"默认管理员: {DEFAULT_ADMIN_USER} / {DEFAULT_ADMIN_PASS}")
     print_config()

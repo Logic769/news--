@@ -1,42 +1,114 @@
-@echo off
-chcp 65001 >nul
-title 南昌航空大学新闻系统
+﻿@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+chcp 65001 >nul 2>&1
+title News Retrieval System - Start
 
-:: 检查 .env 文件
-if exist .env (
-    echo [√] 已找到 .env 配置文件
+cd /d "%~dp0"
+
+echo.
+echo ==================================================
+echo   News Retrieval System - Start
+echo   URL: http://127.0.0.1:5000
+echo ==================================================
+echo.
+
+rem Load .env if it exists. Lines beginning with # are ignored.
+if exist ".env" (
+    echo [OK] Found .env, loading environment variables...
+    for /f "usebackq tokens=1,* delims== eol=#" %%A in (".env") do (
+        if not "%%A"=="" set "%%A=%%B"
+    )
 ) else (
-    echo [!] 未找到 .env，使用 config.py 默认配置
-    echo     如需自定义，请复制 .env.example 为 .env 并修改
-    echo.
+    echo [WARN] .env not found. Using config.py defaults.
 )
 
-:: 检查依赖
-echo [*] 检查 Python 依赖...
-python -c "import flask, pymysql, bs4" 2>nul
-if %errorlevel% neq 0 (
-    echo [!] 缺少依赖，正在安装...
-    pip install -r requirements.txt
-    if %errorlevel% neq 0 (
-        echo [×] 依赖安装失败
+rem Select Python command.
+set "PYTHON_CMD=python"
+python --version >nul 2>&1
+if errorlevel 1 (
+    py -3 --version >nul 2>&1
+    if errorlevel 1 (
+        echo [ERROR] Python was not found. Please install Python 3 and add it to PATH.
+        pause
+        exit /b 1
+    )
+    set "PYTHON_CMD=py -3"
+)
+
+rem Check MySQL port and try to start common MySQL services if needed.
+set "CHECK_PORT=3306"
+if defined MYSQL_PORT set "CHECK_PORT=%MYSQL_PORT%"
+
+echo.
+echo [INFO] Checking MySQL port %CHECK_PORT%...
+netstat -ano | findstr /R /C:":%CHECK_PORT% .*LISTENING" >nul 2>&1
+if errorlevel 1 (
+    echo [WARN] MySQL is not listening on port %CHECK_PORT%. Trying to start service...
+    set "MYSQL_STARTED=0"
+
+    for %%S in (MySQL MySQL80 MySQL57 mysql) do (
+        if "!MYSQL_STARTED!"=="0" (
+            sc query "%%S" >nul 2>&1
+            if not errorlevel 1 (
+                sc query "%%S" | findstr /I "RUNNING" >nul 2>&1
+                if not errorlevel 1 (
+                    set "MYSQL_STARTED=1"
+                ) else (
+                    net start "%%S" >nul 2>&1
+                    if not errorlevel 1 set "MYSQL_STARTED=1"
+                )
+            )
+        )
+    )
+
+    if "!MYSQL_STARTED!"=="0" (
+        echo [ERROR] Could not start MySQL automatically.
+        echo         Please start MySQL manually, then run this file again.
+        pause
+        exit /b 1
+    )
+
+    echo [INFO] Waiting for MySQL to become ready...
+    for /l %%I in (1,1,30) do (
+        netstat -ano | findstr /R /C:":%CHECK_PORT% .*LISTENING" >nul 2>&1
+        if not errorlevel 1 goto mysql_ready
+        timeout /t 1 /nobreak >nul
+    )
+
+    echo [ERROR] MySQL did not become ready in time.
+    pause
+    exit /b 1
+)
+
+:mysql_ready
+echo [OK] MySQL is ready on port %CHECK_PORT%.
+
+echo.
+echo [INFO] Checking Python dependencies...
+%PYTHON_CMD% -c "import flask, pymysql, bs4, flask_cors" >nul 2>&1
+if errorlevel 1 (
+    echo [WARN] Missing dependencies. Installing from requirements.txt...
+    %PYTHON_CMD% -m pip install -r requirements.txt
+    if errorlevel 1 (
+        echo [ERROR] Dependency installation failed.
         pause
         exit /b 1
     )
 )
 
-:: 加载 .env
-if exist .env (
-    for /f "tokens=1,2 delims==" %%a in (.env) do (
-        set %%a=%%b
-    )
+%PYTHON_CMD% -c "import playwright" >nul 2>&1
+if not errorlevel 1 (
+    %PYTHON_CMD% -m playwright install chromium >nul 2>&1
 )
 
 echo.
-echo ==================================================
-echo   南昌航空大学新闻系统
-echo   访问地址: http://127.0.0.1:5000
-echo ==================================================
+echo [INFO] Starting Flask application...
+echo [INFO] Press Ctrl+C to stop, or run stop.bat in another CMD window.
 echo.
 
-python app.py
+%PYTHON_CMD% app.py
+
+echo.
+echo [INFO] Application exited.
 pause
+endlocal

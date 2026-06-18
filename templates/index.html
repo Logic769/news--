@@ -1,9 +1,9 @@
-﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>南昌航空大学 - 南航要闻智能推送系统</title>
+<title>通用新闻检索分析推送系统</title>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -305,7 +305,7 @@ select.form-input{appearance:none;cursor:pointer}
 <!-- ═══ LOGIN ═══ -->
 <div id="login-overlay">
   <div class="login-card">
-    <div class="login-logo">南航要闻智能推送系统</div>
+    <div class="login-logo">通用新闻检索分析推送系统</div>
     <div class="login-sub">基于AI的新闻采集、分类与个性化推送平台<br>为科研管理决策提供及时、准确、全面的信息支撑</div>
     <div class="form-group"><label>账号</label><input class="form-input" type="text" placeholder="请输入用户名" id="loginUser" value="admin"></div>
     <div class="form-group"><label>密码</label><input class="form-input" type="password" placeholder="请输入密码" id="loginPass" value="admin123"></div>
@@ -322,7 +322,7 @@ select.form-input{appearance:none;cursor:pointer}
 <!-- ═══ APP ═══ -->
 <div id="app">
   <aside class="sidebar">
-    <div class="sidebar-logo"><h1>南航要闻<br>智能推送系统</h1><p>AI-POWERED v2.0</p></div>
+    <div class="sidebar-logo"><h1>新闻检索<br>分析推送系统</h1><p>AI-POWERED v2.0</p></div>
     <nav class="sidebar-nav">
       <div class="nav-item active" data-page="home" onclick="navigate('home')"><span class="dot"></span>首页总览</div>
       <div class="nav-item" data-page="category" onclick="navigate('category')"><span class="dot"></span>分类浏览</div>
@@ -358,7 +358,7 @@ select.form-input{appearance:none;cursor:pointer}
     <div class="page active" id="page-home">
       <div class="welcome-banner">
         <h2>欢迎回来，<span id="welcomeName">方裕骁</span></h2>
-        <p>智能助手已为您持续监测南航新闻动态，以下是最新数据概览</p>
+        <p>智能助手已为您持续监测新闻动态，以下是最新数据概览</p>
         <div class="welcome-date" id="welcomeDate"></div>
       </div>
       <div class="stats-row" id="statsRow"></div>
@@ -402,7 +402,7 @@ select.form-input{appearance:none;cursor:pointer}
     <div class="page" id="page-search">
       <div style="padding:30px 0 20px;text-align:center">
         <h2 style="font-family:var(--font-display);font-size:1.4rem;margin-bottom:4px">智能检索</h2>
-        <p style="color:var(--text-muted);font-size:.82rem;margin-bottom:20px">输入关键词搜索南航要闻</p>
+        <p style="color:var(--text-muted);font-size:.82rem;margin-bottom:20px">输入关键词搜索新闻</p>
         <div class="search-box"><input class="search-input" type="text" placeholder="输入关键词..." id="searchInput" onkeyup="if(event.key==='Enter')doSearch()"><button class="search-btn" onclick="doSearch()">检 索</button></div>
         <div class="filter-tabs" style="justify-content:center;margin-bottom:0" id="searchFilterTabs"></div>
         <div class="sort-bar" id="searchSortBar" style="display:flex;gap:6px;padding:8px 0 0;justify-content:center">
@@ -542,6 +542,13 @@ select.form-input{appearance:none;cursor:pointer}
     <div class="form-group"><label>站点名称</label><input class="form-input" type="text" id="newSiteName" placeholder="自动检测或手动输入站点名称"></div>
     <div class="form-group"><label>新闻列表页 URL</label><div style="display:flex;gap:8px"><input class="form-input" type="text" id="newSiteUrl" placeholder="如: https://news.xxx.edu.cn" style="flex:1"><button class="btn-accent" onclick="autoAnalyzeSite()" id="btnAnalyze" style="white-space:nowrap;padding:8px 16px;font-size:.82rem;background:var(--blue);border:1px solid var(--blue);border-radius:var(--radius-sm);color:#fff;cursor:pointer">智能分析</button></div></div>
     <div class="form-group"><label>采集频率</label><select class="form-input" id="newSiteFreq"><option>每日1次</option><option selected>每日2次</option><option>每6小时</option><option>每12小时</option></select></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+      <div class="form-group" style="margin-bottom:0"><label>爬取页数</label><input class="form-input" type="number" id="newSitePages" value="2" min="1" max="20"></div>
+      <div class="form-group" style="margin-bottom:0"><label>请求间隔(秒)</label><input class="form-input" type="number" id="newSiteDelay" value="1.5" min="0" max="10" step="0.1"></div>
+      <div class="form-group" style="margin-bottom:0"><label>重试次数</label><input class="form-input" type="number" id="newSiteRetries" value="3" min="0" max="8"></div>
+      <div class="form-group" style="margin-bottom:0"><label>质量阈值</label><input class="form-input" type="number" id="newSiteQuality" value="60" min="0" max="100"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;margin-bottom:14px;color:var(--text-muted)"><input type="checkbox" id="newSiteJsRender"> 强制启用 JS 渲染</label>
     <!-- 分析结果区域 -->
     <div id="analyzeResult" style="display:none;padding:14px;background:var(--accent-dim);border:1px solid var(--accent);border-radius:var(--radius);margin-bottom:14px;font-size:.82rem;line-height:1.7"></div>
     <div id="analyzeLoading" style="display:none;text-align:center;padding:20px;color:var(--text-muted)">正在智能分析目标网站...</div>
@@ -1022,6 +1029,16 @@ async function autoAnalyzeSite(){
   }
 }
 
+function collectCrawlerSettings(){
+  return {
+    pages:parseInt(document.getElementById('newSitePages')?.value||'2',10),
+    request_delay:parseFloat(document.getElementById('newSiteDelay')?.value||'1.5'),
+    max_retries:parseInt(document.getElementById('newSiteRetries')?.value||'3',10),
+    quality_threshold:parseInt(document.getElementById('newSiteQuality')?.value||'60',10),
+    js_render:!!document.getElementById('newSiteJsRender')?.checked
+  };
+}
+
 async function saveNewSiteSmart(){
   const name=document.getElementById('newSiteName').value.trim();
   const url=document.getElementById('newSiteUrl').value.trim();
@@ -1033,7 +1050,7 @@ async function saveNewSiteSmart(){
   btn.disabled=true; btn.textContent='正在分析并添加...';
 
   try{
-    const res=await fetch('/api/admin/sites/add-and-scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,url,frequency:freq})});
+    const res=await fetch('/api/admin/sites/add-and-scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,url,frequency:freq,settings:collectCrawlerSettings()})});
     const json=await res.json();
     if(json.code===0){
       const d=json.data;
@@ -1142,7 +1159,7 @@ async function saveNewSite(){
   if(!name){alert('站点名称不能为空');return;}
   let config='';
   if(rawConfig){try{JSON.parse(rawConfig);config=rawConfig;}catch(e){alert('爬虫配置 JSON 格式错误: '+e.message);return;}}
-  const payload={name,url,frequency:freq,scraper_config:config};
+  const payload={name,url,frequency:freq,scraper_config:config,settings:collectCrawlerSettings()};
   const res=await fetch(editId?`/api/admin/sites/${editId}`:'/api/admin/sites',{method:editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const json=await res.json();
   if(json.code===0){closeAddSiteModal();loadAdmin();}
@@ -1292,11 +1309,11 @@ async function loadFilteredNews(page){
 
 async function restoreFiltered(fid){
   if(!confirm('确认将该内容恢复到新闻列表？'))return;
-  const json=await api(`/api/admin/filtered-news/${fid}/restore`,{method:'POST'});
-  if(json&&json.code===0){
+  const data=await api(`/api/admin/filtered-news/${fid}/restore`,{method:'POST'});
+  if(data){
     loadFilteredNews(filteredPage);
   }else{
-    alert('恢复失败: '+(json?json.msg:'网络错误'));
+    alert('恢复失败，请重试');
   }
 }
 
@@ -1311,24 +1328,24 @@ async function filterExistingNews(){
   if(!newsId){alert('请输入新闻ID');return;}
   const msg=document.getElementById('filterNewsMsg');
   msg.textContent='处理中...';msg.style.color='var(--text-dim)';
-  const json=await api(`/api/admin/news/${encodeURIComponent(newsId)}/filter`,{method:'POST'});
-  if(json&&json.code===0){
-    msg.textContent=json.data.msg;msg.style.color='var(--green)';
+  const data=await api(`/api/admin/news/${encodeURIComponent(newsId)}/filter`,{method:'POST'});
+  if(data){
+    msg.textContent=data.msg;msg.style.color='var(--green)';
     document.getElementById('inputFilterNewsId').value='';
     loadFilteredNews(1);
   }else{
-    msg.textContent='失败: '+(json?json.msg:'网络错误');msg.style.color='var(--red)';
+    msg.textContent='操作失败，请重试';msg.style.color='var(--red)';
   }
 }
 
 async function markNewsAsInvalid(newsId){
   if(!confirm('确认将该新闻标记为无效内容？将移到过滤列表。'))return;
-  const json=await api(`/api/admin/news/${encodeURIComponent(newsId)}/filter`,{method:'POST'});
-  if(json&&json.code===0){
-    alert('已标记为无效: '+json.data.msg);
+  const data=await api(`/api/admin/news/${encodeURIComponent(newsId)}/filter`,{method:'POST'});
+  if(data){
+    alert('已标记为无效: '+data.msg);
     navigate('home');
   }else{
-    alert('操作失败: '+(json?json.msg:'网络错误'));
+    alert('操作失败，请重试');
   }
 }
 
@@ -1371,13 +1388,13 @@ async function deleteNewsBySource(){
 
   const btn=document.getElementById('btnDeleteSource');
   btn.disabled=true; btn.textContent='删除中...';
-  const res=await api('/api/admin/news/by-source',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({source})});
-  if(res&&res.code===0){
-    document.getElementById('deleteSourceResult').innerHTML=`<span style="color:var(--green)">${res.data.msg}</span>`;
+  const data=await api('/api/admin/news/by-source',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({source})});
+  if(data){
+    document.getElementById('deleteSourceResult').innerHTML=`<span style="color:var(--green)">${data.msg}</span>`;
     closeDeleteSourceModal();
     loadAdmin();
   }else{
-    document.getElementById('deleteSourceResult').innerHTML=`<span style="color:var(--red)">删除失败: ${res?res.msg:'网络错误'}</span>`;
+    document.getElementById('deleteSourceResult').innerHTML=`<span style="color:var(--red)">删除失败，请重试</span>`;
   }
   btn.disabled=false; btn.textContent='确认删除';
 }
@@ -1388,12 +1405,12 @@ async function deleteAllNews(){
   const code=prompt('请输入确认码: CONFIRM_DELETE_ALL');
   if(code!=='CONFIRM_DELETE_ALL'){alert('确认码错误，操作已取消');return;}
 
-  const res=await api('/api/admin/news/all',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:'CONFIRM_DELETE_ALL'})});
-  if(res&&res.code===0){
-    alert(res.data.msg);
+  const data=await api('/api/admin/news/all',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:'CONFIRM_DELETE_ALL'})});
+  if(data){
+    alert(data.msg);
     loadAdmin();
   }else{
-    alert('删除失败: '+(res?res.msg:'网络错误'));
+    alert('删除失败，请重试');
   }
 }
 

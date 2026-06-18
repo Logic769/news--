@@ -59,7 +59,7 @@ def interactive_config():
     port = input("MySQL 端口 [3306]: ").strip() or "3306"
     user = input("MySQL 用户名 [root]: ").strip() or "root"
     password = input("MySQL 密码: ").strip()
-    database = input("数据库名 [nchu_news]: ").strip() or "nchu_news"
+    database = input("数据库名 [news_system]: ").strip() or "news_system"
 
     # 写入 .env 文件
     with open(".env", "w", encoding="utf-8") as f:
@@ -81,7 +81,7 @@ def interactive_config():
 
 def main():
     print("=" * 50)
-    print("  南昌航空大学新闻系统 — 一键部署")
+    print("  通用新闻检索分析推送系统 — 一键部署")
     print("=" * 50)
 
     interactive = "--interactive" in sys.argv or "-i" in sys.argv

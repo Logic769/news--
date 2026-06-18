@@ -35,7 +35,7 @@ DB_CONFIG = {
     "port": int(os.environ.get("MYSQL_PORT", "3306")),
     "user": os.environ.get("MYSQL_USER", "root"),
     "password": os.environ.get("MYSQL_PASSWORD", "root"),
-    "database": os.environ.get("MYSQL_DATABASE", "nchu_news"),
+    "database": os.environ.get("MYSQL_DATABASE", "news_system"),
     "charset": "utf8mb4",
 }
 
@@ -51,7 +51,7 @@ AI_CONFIG = {
 
 # ==================== Flask ====================
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "nchu-news-secret-key-2026")
+SECRET_KEY = os.environ.get("SECRET_KEY", "news-system-secret-key-2026")
 
 # ==================== 管理员默认账号 ====================
 
@@ -61,8 +61,15 @@ DEFAULT_ADMIN_NAME = os.environ.get("ADMIN_NAME", "管理员")
 
 # ==================== 爬虫通用配置 ====================
 
-SCRAPER_DELAY = int(os.environ.get("SCRAPER_DELAY", "2"))      # 请求间隔秒
-SCRAPER_DEFAULT_PAGES = int(os.environ.get("SCRAPER_PAGES", "3"))  # 默认爬取页数
+SCRAPER_DELAY = float(os.environ.get("SCRAPER_DELAY", "1.5"))
+SCRAPER_DEFAULT_PAGES = int(os.environ.get("SCRAPER_PAGES", "3"))
+SCRAPER_TIMEOUT = int(os.environ.get("SCRAPER_TIMEOUT", "30"))
+SCRAPER_MAX_RETRIES = int(os.environ.get("SCRAPER_MAX_RETRIES", "3"))
+SCRAPER_BACKOFF = float(os.environ.get("SCRAPER_BACKOFF", "1.6"))
+SCRAPER_DETAIL_WORKERS = int(os.environ.get("SCRAPER_DETAIL_WORKERS", "4"))
+SCRAPER_MAX_ITEMS_PER_PAGE = int(os.environ.get("SCRAPER_MAX_ITEMS_PER_PAGE", "30"))
+SCRAPER_JS_RENDER_ENABLED = os.environ.get("SCRAPER_JS_RENDER_ENABLED", "1") not in ("0", "false", "False")
+SCRAPER_QUALITY_THRESHOLD = int(os.environ.get("SCRAPER_QUALITY_THRESHOLD", "60"))
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
