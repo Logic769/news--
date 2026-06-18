@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -458,6 +458,7 @@ select.form-input{appearance:none;cursor:pointer}
         <span style="margin-left:auto"></span>
         <button class="btn-outline danger" onclick="showDeleteSourceModal()" style="border-color:var(--orange);color:var(--orange)">按来源删除</button>
         <button class="btn-outline danger" onclick="deleteAllNews()" style="border-color:var(--red);color:var(--red)">删除全部新闻</button>
+        <span style="margin-left:auto;font-size:.72rem;color:var(--text-dim)" id="versionTag">v{{ version }} · {{ startup }}</span>
       </div>
       <div class="push-result" id="pushResult"></div>
       <div id="batchResult" style="padding:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:0;margin-bottom:14px;display:none;font-size:.82rem;line-height:1.7"></div>
@@ -992,7 +993,10 @@ async function autoAnalyzeSite(){
   loading.style.display='block'; result.style.display='none';
 
   try{
-    const res=await fetch('/api/admin/sites/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),30000);
+    const res=await fetch('/api/admin/sites/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url}),signal:ctrl.signal});
+    clearTimeout(timer);
     const json=await res.json();
     if(json.code!==0){result.style.display='block';result.innerHTML='<span style="color:var(--red)">分析失败: '+esc(json.msg)+'</span>';return;}
 
@@ -1022,7 +1026,8 @@ async function autoAnalyzeSite(){
     btn.textContent='重新分析';
   }catch(e){
     result.style.display='block';
-    result.innerHTML='<span style="color:var(--red)">网络错误: '+esc(String(e))+'</span>';
+    if(e.name==='AbortError') result.innerHTML='<span style="color:var(--red)">请求超时（30秒），请检查网络后重试</span>';
+    else result.innerHTML='<span style="color:var(--red)">网络错误: '+esc(String(e))+'</span>';
   }finally{
     btn.disabled=false;
     loading.style.display='none';
@@ -1050,7 +1055,10 @@ async function saveNewSiteSmart(){
   btn.disabled=true; btn.textContent='正在分析并添加...';
 
   try{
-    const res=await fetch('/api/admin/sites/add-and-scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,url,frequency:freq,settings:collectCrawlerSettings()})});
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),60000);
+    const res=await fetch('/api/admin/sites/add-and-scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,url,frequency:freq,settings:collectCrawlerSettings()}),signal:ctrl.signal});
+    clearTimeout(timer);
     const json=await res.json();
     if(json.code===0){
       const d=json.data;
@@ -1066,7 +1074,8 @@ async function saveNewSiteSmart(){
       alert(json.msg);
     }
   }catch(e){
-    alert('操作失败: '+e.message);
+    if(e.name==='AbortError'||(e.message||'').includes('aborted')||(e.message||'').includes('Failed to fetch')) alert('请求超时，可能是目标网站响应较慢。请重试或换一个网站。');
+    else alert('操作失败: '+e.message);
   }finally{
     btn.disabled=false; btn.textContent='一键添加并自动采集';
   }
@@ -1160,10 +1169,18 @@ async function saveNewSite(){
   let config='';
   if(rawConfig){try{JSON.parse(rawConfig);config=rawConfig;}catch(e){alert('爬虫配置 JSON 格式错误: '+e.message);return;}}
   const payload={name,url,frequency:freq,scraper_config:config,settings:collectCrawlerSettings()};
-  const res=await fetch(editId?`/api/admin/sites/${editId}`:'/api/admin/sites',{method:editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  const json=await res.json();
-  if(json.code===0){closeAddSiteModal();loadAdmin();}
-  else alert(json.msg);
+  try{
+     const ctrl=new AbortController();
+     const timer=setTimeout(()=>ctrl.abort(),60000);
+     const res=await fetch(editId?`/api/admin/sites/${editId}`:'/api/admin/sites',{method:editId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:ctrl.signal});
+     clearTimeout(timer);
+     const json=await res.json();
+     if(json.code===0){closeAddSiteModal();loadAdmin();}
+     else alert(json.msg);
+   }catch(e){
+     if(e.name==='AbortError'||(e.message||'').includes('aborted')||(e.message||'').includes('Failed to fetch')) alert('请求超时，可能是目标网站响应较慢。请重试或换一个网站。');
+     else alert('网络请求失败: '+e.message);
+  }
 }
 async function toggleSiteStatus(siteId,newStatus){
   await api(`/api/admin/sites/${siteId}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:newStatus})});

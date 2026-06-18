@@ -413,7 +413,7 @@ def parse_list(html, config):
             m = re.search(pat, href)
             if m:
                 break
-        raw_id = m.group(1) if m else href.replace("/", "_").strip("_")
+        raw_id = m.group(1) if (m and m.lastindex and m.lastindex >= 1) else href.replace("/", "_").strip("_")
         news_id = "s" + hashlib.md5(raw_id.encode()).hexdigest()[:19]
         title = link.get_text(strip=True)
         if not title or len(title) < 4 or title in _NAV_FILTER:
@@ -426,6 +426,10 @@ def parse_list(html, config):
         parent_text = parent.get_text(strip=True) if parent else ""
         date_match = re.search(r"(\\d{{4}}[-/年]\\d{{1,2}}[-/月]\\d{{1,2}})", parent_text)
         date_str = date_match.group(1) if date_match else ""
+        if not date_str:
+            date_match = re.search(r"(\\d{{2}}-\\d{{2}})", parent_text)
+            if date_match:
+                date_str = datetime.now().strftime("%Y-") + date_match.group(1)
         items.append({{"news_id": news_id, "title": title[:500], "url": full_url, "date_str": date_str}})
         if len(items) >= max_items:
             break
@@ -527,6 +531,8 @@ def parse_detail(html, config):
     if not detail.get("content"):
         for cls in ("wp_articlecontent", "TRS_Editor", "v_news_content", "article-content", "article_content", "content", "article", "main"):
             article = soup.find("div", class_=re.compile(cls, re.IGNORECASE))
+            if not article and cls == "article":
+                article = soup.find("article")
             if article:
                 content = clean_content_node(article, config)
                 if content:
@@ -711,35 +717,39 @@ def save_site_crawler_file(site_name, code):
     return filepath
 
 
-def build_site_profile(url, name="", settings=None):
+def build_site_profile(url, name="", settings=None, fast=False):
     settings = settings or {}
     if not url.startswith("http"):
         url = "https://" + url
-    ai_config, ai_report = ai_generate_scraper_config(url)
-    if ai_config:
-        html_test, _ = fetch_url(url, {"timeout": 25, "max_retries": 1, "encoding": "utf-8"}, allow_js=False)
-        from bs4 import BeautifulSoup as _BS
-        test_soup = _BS(html_test, "html.parser")
-        ai_sel = ai_config.get("list_item_selector", "")
-        direct_hits = len(test_soup.select(ai_sel)) if ai_sel else 0
-        test_items = parse_list(html_test, ai_config)
-        nav_titles = {"首页", "学校主页", "网站首页", "学院首页", "部门首页", "设为首页", "加入收藏",
-                      "登录", "注册", "English", "ENGLISH", "手机版", "网站地图", "返回首页",
-                      "综合要闻", "科教在线", "工作动态", "通知公告", "学术动态", "媒体聚焦",
-                      "校园文化", "人才培养", "科学研究", "招生就业", "校园生活", "合作交流",
-                      "信息公开", "学校概况", "组织机构", "师资队伍", "学科建设", "教育教学"}
-        valid_items = [it for it in (test_items or [])
-                       if len(it.get("title", "")) >= 6 and it.get("title", "").strip() not in nav_titles]
-        if direct_hits >= 3 and len(valid_items) >= 3:
-            config = ai_config
-            report = {"summary": f"AI 分析: {ai_report}", "engine": "ai", "site_name": name or urlparse(url).netloc}
+    if fast:
+        config, report = auto_analyze_site(url, quick_timeout=12, fast=True, skip_detail_sampling=True)
+        report["engine"] = "rule"
+    else:
+        ai_config, ai_report = ai_generate_scraper_config(url)
+        if ai_config:
+            html_test, _ = fetch_url(url, {"timeout": 25, "max_retries": 1, "encoding": "utf-8"}, allow_js=False)
+            from bs4 import BeautifulSoup as _BS
+            test_soup = _BS(html_test, "html.parser")
+            ai_sel = ai_config.get("list_item_selector", "")
+            direct_hits = len(test_soup.select(ai_sel)) if ai_sel else 0
+            test_items = parse_list(html_test, ai_config)
+            nav_titles = {"首页", "学校主页", "网站首页", "学院首页", "部门首页", "设为首页", "加入收藏",
+                          "登录", "注册", "English", "ENGLISH", "手机版", "网站地图", "返回首页",
+                          "综合要闻", "科教在线", "工作动态", "通知公告", "学术动态", "媒体聚焦",
+                          "校园文化", "人才培养", "科学研究", "招生就业", "校园生活", "合作交流",
+                          "信息公开", "学校概况", "组织机构", "师资队伍", "学科建设", "教育教学"}
+            valid_items = [it for it in (test_items or [])
+                           if len(it.get("title", "")) >= 6 and it.get("title", "").strip() not in nav_titles]
+            if direct_hits >= 3 and len(valid_items) >= 3:
+                config = ai_config
+                report = {"summary": f"AI 分析: {ai_report}", "engine": "ai", "site_name": name or urlparse(url).netloc}
+            else:
+                logger.warning(f"  AI 配置验证失败 (有效链接={len(valid_items)}/{len(test_items or [])})，回退规则分析")
+                config, report = auto_analyze_site(url)
+                report["engine"] = "rule"
         else:
-            logger.warning(f"  AI 配置验证失败 (有效链接={len(valid_items)}/{len(test_items or [])})，回退规则分析")
             config, report = auto_analyze_site(url)
             report["engine"] = "rule"
-    else:
-        config, report = auto_analyze_site(url)
-        report["engine"] = "rule"
     config.update(settings)
     config.setdefault("request_delay", REQUEST_DELAY)
     config.setdefault("max_retries", SCRAPER_MAX_RETRIES)
@@ -1172,7 +1182,7 @@ def parse_list(html, config):
             m = re.search(pat, href)
             if m:
                 break
-        raw_id = m.group(1) if m else href.replace("/", "_").strip("_")
+        raw_id = m.group(1) if (m and m.lastindex and m.lastindex >= 1) else href.replace("/", "_").strip("_")
         news_id = "s" + hashlib.md5(raw_id.encode()).hexdigest()[:19]
 
         title = link.get_text(strip=True)
@@ -1184,11 +1194,14 @@ def parse_list(html, config):
             continue
         seen_urls.add(full_url)
 
-        # 尝试从父元素提取日期
         parent = link.parent
         parent_text = parent.get_text(strip=True) if parent else ""
         date_match = re.search(r"(\d{4}[-/年]\d{1,2}[-/月]\d{1,2})", parent_text)
         date_str = date_match.group(1) if date_match else ""
+        if not date_str:
+            date_match = re.search(r"(\d{2}-\d{2})", parent_text)
+            if date_match:
+                date_str = datetime.now().strftime("%Y-") + date_match.group(1)
 
         items.append({
             "news_id": news_id,
@@ -1348,6 +1361,8 @@ def parse_detail(html, config):
     if not detail.get("content"):
         for cls in ("wp_articlecontent", "TRS_Editor", "v_news_content", "article-content", "article_content", "content", "article", "main", "wp_articlecontent"):
             article = soup.find("div", class_=re.compile(cls, re.IGNORECASE))
+            if not article and cls == "article":
+                article = soup.find("article")
             if article:
                 content = clean_content_node(article, config)
                 if content:
@@ -2013,21 +2028,11 @@ SITE_TEMPLATES = {
 
 # ==================== 智能网站分析 ====================
 
-def auto_analyze_site(url, pages_to_check=3):
-    """
-    智能分析网站结构，自动探测：
-      - 网站名称（从 <title> 提取）
-      - 新闻列表页中的链接选择器
-      - 分页规则
-      - 详情页的正文选择器
-      - news_id 提取规则
-    返回: (config_dict, analysis_report_dict)
-    """
-    # 规范化 URL
+def auto_analyze_site(url, pages_to_check=3, quick_timeout=None, fast=False, skip_detail_sampling=False):
     url = url.strip()
     if not url.startswith("http"):
         url = "https://" + url
-    base_url = "/".join(url.split("/")[:3])  # https://example.com
+    base_url = "/".join(url.split("/")[:3])
     list_url = url.rstrip("/")
 
     logger.info(f"===== 智能分析站点: {list_url} =====")
@@ -2047,8 +2052,8 @@ def auto_analyze_site(url, pages_to_check=3):
         "detail_author_selector": "",
         "content_filter_keywords": ["广告", "推荐阅读", "相关阅读"],
         "quality_threshold": SCRAPER_QUALITY_THRESHOLD,
-        "max_retries": SCRAPER_MAX_RETRIES,
-        "timeout": SCRAPER_TIMEOUT,
+        "max_retries": 1 if quick_timeout else SCRAPER_MAX_RETRIES,
+        "timeout": quick_timeout or SCRAPER_TIMEOUT,
         "detail_workers": SCRAPER_DETAIL_WORKERS,
         "max_items_per_page": SCRAPER_MAX_ITEMS_PER_PAGE,
         "js_render": False,
@@ -2122,28 +2127,27 @@ def auto_analyze_site(url, pages_to_check=3):
 
     logger.info(f"  检测到 {len(all_links)} 个候选链接, 最优分组: {best_group_key[0]} ({best_count} 条)")
 
-    href_samples = [l["href"] for l in all_links[:20]]
+    href_samples = [l["href"] for l in all_links]
 
-    if best_count < 3 and all_links:
-        url_patterns = [
-            (r"/c\d+a\d+/page", "a[href*='/c']"),
-            (r"/c\d+a\d+/page", "a[href*='/page']"),
-            (r"/page\.htm", "a[href*='/page.htm']"),
-            (r"/pagem\.htm", "a[href*='/pagem.htm']"),
-            (r"content_\d+", "a[href*='content_']"),
-            (r"/article/\d+", "a[href*='/article/']"),
-            (r"/news/\d+", "a[href*='/news/']"),
-            (r"/detail/\d+", "a[href*='/detail/']"),
-            (r"/info/\d+", "a[href*='/info/']"),
-            (r"\d+\.html?", "a[href$='.html']"),
-            (r"\d+\.shtml?", "a[href$='.shtml']"),
-        ]
-        for pat, selector in url_patterns:
-            matches = [h for h in href_samples if re.search(pat, h)]
-            if len(matches) >= 2:
-                config["list_item_selector"] = selector
-                config["news_id_pattern"] = pat
-                break
+    _url_patterns = [
+        (r"/c\d+a\d+/page", "a[href*='/c']"),
+        (r"/c\d+a\d+/page", "a[href*='/page']"),
+        (r"/page\.htm", "a[href*='/page.htm']"),
+        (r"/pagem\.htm", "a[href*='/pagem.htm']"),
+        (r"content_(\d+)", "a[href*='content_']"),
+        (r"/article/\d+", "a[href*='/article/']"),
+        (r"/news/\d+", "a[href*='/news/']"),
+        (r"/detail/\d+", "a[href*='/detail/']"),
+        (r"/info/\d+", "a[href*='/info/']"),
+        (r"\d+\.html?", "a[href$='.html']"),
+        (r"\d+\.shtml?", "a[href$='.shtml']"),
+    ]
+    for pat, selector in _url_patterns:
+        matches = [h for h in href_samples if re.search(pat, h)]
+        if len(matches) >= 2:
+            config["list_item_selector"] = selector
+            config["news_id_pattern"] = pat
+            break
 
     if not config["list_item_selector"]:
         tag, cls = best_group_key[0].split("|", 1)
@@ -2186,9 +2190,27 @@ def auto_analyze_site(url, pages_to_check=3):
         logger.info(f"  检测到分页: {pagination}")
 
     # ---- 4. 取样详情页，探测正文选择器 ----
-    if all_links:
-        # 取前3个链接作为详情页样本
-        sample_links = all_links[:min(3, len(all_links))]
+    sample_links = []
+    if all_links and not fast and not skip_detail_sampling:
+        list_sel = config.get("list_item_selector", "")
+        if list_sel:
+            try:
+                matched = soup.select(list_sel)
+                for a in matched:
+                    href = a.get("href", "")
+                    if not isinstance(href, str) or not href:
+                        continue
+                    full = urljoin(base_url + "/", href)
+                    text = a.get_text(strip=True)
+                    if len(text) >= 6 and full not in {sl["href"] for sl in sample_links}:
+                        sample_links.append({"href": full, "text": text, "a": a,
+                                             "parent_tag": "", "parent_cls": ""})
+            except Exception:
+                pass
+        if not sample_links:
+            sample_links = all_links[:min(3, len(all_links))]
+        max_samples = 0 if skip_detail_sampling else (1 if fast else 3)
+        sample_links = sample_links[:max_samples]
         for sl in sample_links:
             try:
                 href = sl["href"]
@@ -2220,12 +2242,12 @@ def auto_analyze_site(url, pages_to_check=3):
                 if not best_div:
                     for div in detail_soup.find_all("div"):
                         cls_str = " ".join(div.get("class", [])) + " " + (div.get("id", "") or "")
-                        if any(kw in cls_str.lower() for kw in ("footer", "nav", "header", "sidebar", "menu", "copyright", "inner")):
+                        if any(kw in cls_str.lower() for kw in ("footer", "nav", "header", "sidebar", "menu", "copyright", "inner", "right", "banner", "copy")):
                             continue
                         p_count = len([p for p in div.find_all("p") if len(p.get_text(strip=True)) > 10])
-                    if p_count > best_p_count:
-                        best_p_count = p_count
-                        best_div = div
+                        if p_count > best_p_count:
+                            best_p_count = p_count
+                            best_div = div
 
                 if best_div and best_p_count >= 2:
                     cls = best_div.get("class", [])

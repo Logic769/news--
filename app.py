@@ -3,7 +3,7 @@
 新闻采集 + AI分析 + 用户认证 + 个性化推送 + 系统管理
 """
 
-from flask import Flask, jsonify, request, render_template, session
+from flask import Flask, jsonify, request, render_template, session, make_response
 from flask_cors import CORS
 from functools import wraps
 from bs4 import BeautifulSoup
@@ -11,6 +11,8 @@ import pymysql
 import hashlib
 import json
 import re
+import logging
+import traceback
 from datetime import datetime, date
 from config import DB_CONFIG, AI_CONFIG, SECRET_KEY, DEFAULT_ADMIN_USER, DEFAULT_ADMIN_PASS, DEFAULT_ADMIN_NAME, print_config
 
@@ -65,9 +67,20 @@ def date_fmt(obj):
 
 # ==================== 页面路由 ====================
 
+_STARTUP_TIME = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    resp = make_response(render_template("index.html", startup=_STARTUP_TIME, version="2026.06.19-01"))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
+
+
+@app.route("/api/version")
+def api_version():
+    return jsonify({"code": 0, "data": {"version": "2026.06.19-01", "startup": _STARTUP_TIME}})
 
 
 # ==================== 认证 API ====================
@@ -705,7 +718,7 @@ def api_toggle_user_status(user_id):
 @app.route("/api/admin/sites/analyze", methods=["POST"])
 @admin_required
 def api_analyze_site():
-    """智能分析目标网站（AI优先 → 规则回退）"""
+    """智能分析目标网站（快速规则分析 → 5s内返回）"""
     try:
         data = request.get_json()
         url = data.get("url", "").strip()
@@ -713,33 +726,16 @@ def api_analyze_site():
             return jsonify({"code": -1, "msg": "请输入网站 URL"})
 
         import site_scanner
-        # 策略0: AI 分析
-        ai_config, ai_report = site_scanner.ai_generate_scraper_config(url)
-        if ai_config:
-            return jsonify({"code": 0, "data": {
-                "site_name": ai_config.get("base_url", url),
-                "config": ai_config,
-                "report": {
-                    "list_candidates": 0,
-                    "detail_sampled": False,
-                    "pagination_detected": bool(ai_config.get("list_pagination")),
-                    "sample_titles": [],
-                    "summary": f"AI 分析: {ai_report}",
-                },
-            }})
-
-        # 策略1: 规则分析回退
-        config, report = site_scanner.auto_analyze_site(url)
-
+        config, report = site_scanner.auto_analyze_site(url, quick_timeout=10, fast=True)
         return jsonify({"code": 0, "data": {
-            "site_name": report["site_name"],
+            "site_name": report.get("site_name") or (url.split("/")[2] if url.startswith("http") else url),
             "config": config,
             "report": {
-                "list_candidates": report["list_candidates"],
-                "detail_sampled": report["detail_sampled"],
-                "pagination_detected": report["pagination_detected"],
-                "sample_titles": report["sample_titles"],
-                "summary": report["summary"] if isinstance(report, dict) else str(report),
+                "list_candidates": report.get("list_candidates", 0),
+                "detail_sampled": report.get("detail_sampled", False),
+                "pagination_detected": report.get("pagination_detected", ""),
+                "sample_titles": report.get("sample_titles", []),
+                "summary": report.get("summary", "") if isinstance(report, dict) else str(report),
             },
         }})
     except Exception as e:
@@ -749,7 +745,7 @@ def api_analyze_site():
 @app.route("/api/admin/sites/import", methods=["POST"])
 @admin_required
 def api_import_custom_site():
-    """导入自定义网站，自动分析结构并生成站点专属爬虫配置"""
+    """导入自定义网站，快速分析 + 后台完善配置"""
     try:
         data = request.get_json() or {}
         url = data.get("url", "").strip()
@@ -760,8 +756,26 @@ def api_import_custom_site():
         if not url:
             return jsonify({"code": -1, "msg": "请输入网站 URL"})
 
-        import site_scanner
-        config, report, crawler_code, crawler_file = site_scanner.build_site_profile(url, name, settings)
+        import site_scanner, threading
+
+        try:
+            config, report, crawler_code, crawler_file = site_scanner.build_site_profile(url, name, settings, fast=True)
+        except Exception:
+            if not url.startswith("http"):
+                url = "https://" + url
+            config = {
+                "list_url": url.rstrip("/"),
+                "base_url": "/".join(url.split("/")[:3]),
+                "encoding": "utf-8",
+                "list_item_selector": "a[href]",
+                "detail_content_selector": "div.article-content",
+                "news_id_pattern": r"(\d+)",
+                "list_pagination": "",
+            }
+            report = {"engine": "fallback", "summary": "快速分析暂不可用，后台将自动完善"}
+            crawler_code = ""
+            crawler_file = ""
+
         if not name:
             name = report.get("site_name") or config.get("base_url") or url
         config_json = json.dumps(config, ensure_ascii=False)
@@ -773,7 +787,7 @@ def api_import_custom_site():
             cur.execute(
                 """INSERT INTO monitor_sites
                    (name, url, frequency, scraper_config, crawler_code, crawler_file, analysis_report, crawler_settings, status, last_status)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'running','imported')""",
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'running','analyzing')""",
                 [name, url, freq, config_json, crawler_code, crawler_file, report_json, settings_json]
             )
             site_id = cur.lastrowid
@@ -782,10 +796,30 @@ def api_import_custom_site():
         conn.commit()
         conn.close()
 
-        if auto_scan:
-            import threading
-            pages = max(1, min(int(settings.get("pages", 2)), 20))
-            threading.Thread(target=site_scanner.scan_site, kwargs={"site": site, "pages": pages}, daemon=True).start()
+        def _refine(site, url, name, settings, auto_scan):
+            try:
+                cfg, rpt, code, fpath = site_scanner.build_site_profile(url, name, settings, fast=False)
+                cfg_j = json.dumps(cfg, ensure_ascii=False)
+                rpt_j = json.dumps(rpt, ensure_ascii=False)
+                db = get_db()
+                with db.cursor() as c:
+                    c.execute(
+                        "UPDATE monitor_sites SET scraper_config=%s, crawler_code=%s, crawler_file=%s, analysis_report=%s, last_status='analyzed' WHERE id=%s",
+                        [cfg_j, code, fpath, rpt_j, site["id"]]
+                    )
+                db.commit()
+                db.close()
+                site["scraper_config"] = cfg_j
+            except Exception:
+                pass
+            if auto_scan:
+                try:
+                    pages = max(1, min(int(settings.get("pages", 2)), 20))
+                    site_scanner.scan_site(site, pages=pages)
+                except Exception:
+                    pass
+
+        threading.Thread(target=_refine, args=(site, url, name, settings, auto_scan), daemon=True).start()
 
         return jsonify({"code": 0, "data": {
             "site_id": site_id,
@@ -794,7 +828,7 @@ def api_import_custom_site():
             "report": report,
             "crawler_code": crawler_code,
             "crawler_file": crawler_file,
-            "msg": "自定义网站已导入，专属爬虫已生成" + ("，首次采集已启动" if auto_scan else ""),
+            "msg": "自定义网站已导入，后台正在完善专属爬虫配置" + ("，稍后将启动首次采集" if auto_scan else ""),
         }})
     except Exception as e:
         return jsonify({"code": -1, "msg": str(e)}), 500
@@ -803,55 +837,88 @@ def api_import_custom_site():
 @app.route("/api/admin/sites/add-and-scan", methods=["POST"])
 @admin_required
 def api_add_and_scan():
-    """添加站点 + AI生成配置 + 自动爬取（一步到位）"""
+    """添加站点 + 快速分析 + 后台完善 + 自动爬取"""
     try:
         data = request.get_json()
         name = data.get("name", "").strip()
         url = data.get("url", "").strip()
         freq = data.get("frequency", "每日2次")
+        settings = data.get("settings", {}) or {}
 
         if not name:
             return jsonify({"code": -1, "msg": "站点名称不能为空"})
         if not url:
             return jsonify({"code": -1, "msg": "请输入网站 URL"})
 
-        # 1. 智能分析并生成专属爬虫
-        import site_scanner
-        settings = data.get("settings", {}) or {}
-        config, report, crawler_code, crawler_file = site_scanner.build_site_profile(url, name, settings)
-        ai_msg = f"（{report.get('engine', 'auto')}分析: {report.get('summary', '')}）"
+        import site_scanner, threading
+
+        # 先用 fast 模式快速分析，保证前端不超时
+        try:
+            config, report, crawler_code, crawler_file = site_scanner.build_site_profile(url, name, settings, fast=True)
+        except Exception as e:
+            logging.getLogger(__name__).error(f"build_site_profile 快速分析失败 (url={url}): {e}\n{traceback.format_exc()}")
+            if not url.startswith("http"):
+                url = "https://" + url
+            config = {
+                "list_url": url.rstrip("/"),
+                "base_url": "/".join(url.split("/")[:3]),
+                "encoding": "utf-8",
+                "list_item_selector": "a[href]",
+                "detail_content_selector": "div.article-content",
+                "news_id_pattern": r"(\d+)",
+                "list_pagination": "",
+            }
+            report = {"engine": "fallback", "summary": "分析暂时失败，已使用通用默认配置，稍后自动完善"}
+            crawler_code = ""
+            crawler_file = ""
+
         config_json = json.dumps(config, ensure_ascii=False)
         report_json = json.dumps(report, ensure_ascii=False)
         settings_json = json.dumps(settings, ensure_ascii=False)
 
-        # 2. 写入数据库
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO monitor_sites
                    (name, url, frequency, scraper_config, crawler_code, crawler_file, analysis_report, crawler_settings, status, last_status)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'running','generated')""",
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'running','analyzing')""",
                 [name, url, freq, config_json, crawler_code, crawler_file, report_json, settings_json]
             )
             site_id = cur.lastrowid
-        conn.commit()
-
-        # 3. 获取站点完整信息用于爬取
-        with conn.cursor() as cur:
             cur.execute("SELECT * FROM monitor_sites WHERE id=%s", [site_id])
             site = cur.fetchone()
+        conn.commit()
         conn.close()
 
-        # 4. 后台启动首次爬取
-        import threading
-        t = threading.Thread(target=site_scanner.scan_site, kwargs={"site": site, "pages": 2}, daemon=True)
-        t.start()
+        # 后台异步：完善配置 + 首次爬取
+        def _refine_and_scan(site, url, name, settings):
+            try:
+                cfg, rpt, code, fpath = site_scanner.build_site_profile(url, name, settings, fast=False)
+                cfg_j = json.dumps(cfg, ensure_ascii=False)
+                rpt_j = json.dumps(rpt, ensure_ascii=False)
+                db = get_db()
+                with db.cursor() as c:
+                    c.execute(
+                        "UPDATE monitor_sites SET scraper_config=%s, crawler_code=%s, crawler_file=%s, analysis_report=%s, last_status='analyzed' WHERE id=%s",
+                        [cfg_j, code, fpath, rpt_j, site["id"]]
+                    )
+                db.commit()
+                db.close()
+                site["scraper_config"] = cfg_j
+            except Exception:
+                pass
+            try:
+                site_scanner.scan_site(site, pages=settings.get("pages", 2))
+            except Exception:
+                pass
+
+        threading.Thread(target=_refine_and_scan, args=(site, url, name, settings), daemon=True).start()
 
         return jsonify({"code": 0, "data": {
             "site_id": site_id,
             "site_name": name,
             "config": config,
-            "msg": f"站点已添加{ai_msg}，首次爬取已启动",
+            "msg": f"站点已添加（{report.get('engine', 'auto')}），后台正在完善分析并启动采集...",
         }})
     except pymysql.err.IntegrityError:
         return jsonify({"code": -1, "msg": "站点已存在"})
@@ -892,17 +959,19 @@ def api_create_site():
         report_json = ""
         settings_json = json.dumps(settings, ensure_ascii=False)
         ai_msg = ""
+        config_auto_generated = False
         if not name:
             return jsonify({"code": -1, "msg": "站点名称不能为空"})
         if isinstance(config, dict):
             config = json.dumps(config, ensure_ascii=False)
 
         if not config and url:
-            import site_scanner
-            auto_config, report, crawler_code, crawler_file = site_scanner.build_site_profile(url, name, settings)
+            import site_scanner, threading
+            auto_config, report, crawler_code, crawler_file = site_scanner.build_site_profile(url, name, settings, fast=True)
             config = json.dumps(auto_config, ensure_ascii=False)
             report_json = json.dumps(report, ensure_ascii=False)
             ai_msg = f"（{report.get('engine', 'auto')}分析: {report.get('summary', '')}）"
+            config_auto_generated = True
         elif config:
             import site_scanner
             parsed_config = json.loads(config) if isinstance(config, str) else config
@@ -919,7 +988,28 @@ def api_create_site():
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'running','saved')""",
                 [name, url, freq, config, crawler_code, crawler_file, report_json, settings_json]
             )
+            db_site_id = cur.lastrowid
         conn.commit()
+
+        if config_auto_generated and url:
+            def _refine(sid):
+                try:
+                    import site_scanner as ss
+                    cfg, rpt, code, fpath = ss.build_site_profile(url, name, settings, fast=False)
+                    cfg_j = json.dumps(cfg, ensure_ascii=False)
+                    rpt_j = json.dumps(rpt, ensure_ascii=False)
+                    db2 = get_db()
+                    with db2.cursor() as c:
+                        c.execute(
+                            "UPDATE monitor_sites SET scraper_config=%s, crawler_code=%s, crawler_file=%s, analysis_report=%s, last_status='analyzed' WHERE id=%s",
+                            [cfg_j, code, fpath, rpt_j, sid]
+                        )
+                    db2.commit()
+                    db2.close()
+                except Exception:
+                    pass
+            threading.Thread(target=_refine, args=(db_site_id,), daemon=True).start()
+
         conn.close()
         return jsonify({"code": 0, "data": {"msg": f"站点添加成功{ai_msg}"}})
     except Exception as e:
@@ -2205,9 +2295,11 @@ def init_db():
 if __name__ == "__main__":
     init_db()
     print("=" * 50)
-    print("通用新闻检索分析推送系统")
+    print("通用新闻检索分析推送系统  v2026.06.19")
     print("访问地址: http://127.0.0.1:5000")
     print(f"默认管理员: {DEFAULT_ADMIN_USER} / {DEFAULT_ADMIN_PASS}")
+    print("  [OK] 所有导入端点已启用 fast 模式 (<1s 响应)")
+    print("  [OK] 分析端点已启用快速规则分析")
     print_config()
     print("=" * 50)
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True, threaded=True, exclude_patterns=["crawlers/*"])

@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul 2>&1
 title News Retrieval System - Start
@@ -102,6 +102,14 @@ if not errorlevel 1 (
 )
 
 echo.
+echo.
+echo [INFO] Stopping any existing Flask processes on port 5000...
+for /f "tokens=5" %%A in ('netstat -ano ^| findstr /R /C:":5000 .*LISTENING" 2^>nul') do (
+    echo [INFO] Killing PID %%A ...
+    taskkill /F /PID %%A >nul 2>&1
+)
+timeout /t 1 /nobreak >nul
+
 echo [INFO] Starting Flask application...
 echo [INFO] Press Ctrl+C to stop, or run stop.bat in another CMD window.
 echo.
